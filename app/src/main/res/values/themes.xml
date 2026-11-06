@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Solo define la ventana; toda la interfaz es Compose (Material 3). -->
+    <style name="Theme.Recetario" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
