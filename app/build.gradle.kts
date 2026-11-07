@@ -15,6 +15,13 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+
+        // URL base de la API desplegada en AWS (debe terminar en "/")
+        buildConfigField(
+            "String",
+            "API_BASE_URL",
+            "\"https://9zk01zpds3.execute-api.us-east-1.amazonaws.com/dev/\"",
+        )
     }
 
     buildTypes {
@@ -31,6 +38,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -47,5 +55,6 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)
     implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
 }
