@@ -9,4 +9,5 @@ import com.perezgomez.recetario.di.AppContainer
 fun appViewModelFactory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
     initializer { LoginViewModel(container.authRepository) }
     initializer { RegisterViewModel(container.authRepository) }
+    initializer { HomeViewModel(container.recetaRepository, container.authRepository) }
 }
