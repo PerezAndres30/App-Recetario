@@ -1,6 +1,7 @@
 package com.perezgomez.recetario.presentation.viewmodels
 
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.perezgomez.recetario.di.AppContainer
@@ -10,4 +11,5 @@ fun appViewModelFactory(container: AppContainer): ViewModelProvider.Factory = vi
     initializer { LoginViewModel(container.authRepository) }
     initializer { RegisterViewModel(container.authRepository) }
     initializer { HomeViewModel(container.recetaRepository, container.authRepository) }
+    initializer { DetalleViewModel(container.recetaRepository, createSavedStateHandle()) }
 }

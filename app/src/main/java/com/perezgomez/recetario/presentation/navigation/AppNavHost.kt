@@ -7,14 +7,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.perezgomez.recetario.di.AppContainer
 import com.perezgomez.recetario.presentation.screens.HomeScreen
+import com.perezgomez.recetario.presentation.screens.DetalleScreen
 import com.perezgomez.recetario.presentation.screens.LoginScreen
 import com.perezgomez.recetario.presentation.screens.RegisterScreen
 import com.perezgomez.recetario.presentation.viewmodels.HomeViewModel
+import com.perezgomez.recetario.presentation.viewmodels.DetalleViewModel
 import com.perezgomez.recetario.presentation.viewmodels.LoginViewModel
 import com.perezgomez.recetario.presentation.viewmodels.RegisterViewModel
 import com.perezgomez.recetario.presentation.viewmodels.appViewModelFactory
@@ -52,13 +56,23 @@ fun AppNavHost(
                 mensajeNav = mensajeNav,
                 onMensajeNavMostrado = { entry.savedStateHandle.set<String>(Rutas.MENSAJE_NAV, null) },
                 onNuevaReceta = { /* se conecta en un commit posterior */ },
-                onVerDetalle = { /* se conecta en un commit posterior */ },
+                onVerDetalle = { id -> navController.navigate(Rutas.detalle(id)) },
                 // Cerrar sesión: se vacía toda la pila para que "Atrás" no regrese a Home.
                 onSesionCerrada = {
                     navController.navigate(Rutas.LOGIN) {
                         popUpTo(navController.graph.id) { inclusive = true }
                     }
                 },
+            )
+        }
+
+        composable(
+            route = Rutas.DETALLE,
+            arguments = listOf(navArgument(Rutas.ARG_ID) { type = NavType.StringType }),
+        ) {
+            DetalleScreen(
+                viewModel = viewModel<DetalleViewModel>(factory = factory),
+                onVolver = { navController.popBackStack() },
             )
         }
     }
