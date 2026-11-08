@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +54,6 @@ fun CampoTexto(
     )
 }
 
-
 @Composable
 fun PantallaCargando(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -78,4 +79,26 @@ fun PantallaError(mensaje: String, onReintentar: () -> Unit, modifier: Modifier 
             Text("Reintentar")
         }
     }
+}
+
+@Composable
+fun ConfirmarEliminarDialog(
+    titulo: String,
+    cargando: Boolean,
+    onConfirmar: () -> Unit,
+    onCancelar: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = { if (!cargando) onCancelar() },
+        title = { Text("Eliminar receta") },
+        text = { Text("¿Seguro que quieres eliminar \"$titulo\"? Esta acción no se puede deshacer.") },
+        confirmButton = {
+            TextButton(onClick = onConfirmar, enabled = !cargando) {
+                Text(if (cargando) "Eliminando..." else "Eliminar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancelar, enabled = !cargando) { Text("Cancelar") }
+        },
+    )
 }

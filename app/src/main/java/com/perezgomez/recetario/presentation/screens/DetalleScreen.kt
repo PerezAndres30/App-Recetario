@@ -7,6 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -27,6 +29,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.perezgomez.recetario.domain.model.Receta
+import com.perezgomez.recetario.presentation.components.ConfirmarEliminarDialog
 import com.perezgomez.recetario.presentation.components.PantallaCargando
 import com.perezgomez.recetario.presentation.components.PantallaError
 import com.perezgomez.recetario.presentation.viewmodels.DetalleViewModel
@@ -34,7 +37,11 @@ import com.perezgomez.recetario.presentation.viewmodels.DetalleViewModel
 @Composable
 fun DetalleScreen(
     viewModel: DetalleViewModel,
+    mensajeNav: String?,
+    onMensajeNavMostrado: () -> Unit,
     onVolver: () -> Unit,
+    onEditar: (String) -> Unit,
+    onEliminada: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -48,12 +55,35 @@ fun DetalleScreen(
         }
     }
 
+    LaunchedEffect(mensajeNav) {
+        mensajeNav?.let {
+            snackbarHostState.showSnackbar(it)
+            onMensajeNavMostrado()
+        }
+    }
+
+    LaunchedEffect(state.eliminada) {
+        if (state.eliminada) onEliminada()
+    }
+
     DetalleContent(
         state = state,
         snackbarHostState = snackbarHostState,
         onVolver = onVolver,
+        onEditar = onEditar,
+        onEliminarClick = viewModel::onEliminarClick,
         onReintentar = viewModel::cargar,
     )
+
+    val receta = (state.contenido as? DetalleContenido.Listo)?.receta
+    if (state.confirmandoEliminar && receta != null) {
+        ConfirmarEliminarDialog(
+            titulo = receta.titulo,
+            cargando = state.eliminando,
+            onConfirmar = viewModel::onConfirmarEliminar,
+            onCancelar = viewModel::onCancelarEliminar,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,8 +92,12 @@ fun DetalleContent(
     state: DetalleUiState,
     snackbarHostState: SnackbarHostState,
     onVolver: () -> Unit,
+    onEditar: (String) -> Unit,
+    onEliminarClick: () -> Unit,
     onReintentar: () -> Unit,
 ) {
+    val receta = (state.contenido as? DetalleContenido.Listo)?.receta
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -71,6 +105,16 @@ fun DetalleContent(
                 navigationIcon = {
                     IconButton(onClick = onVolver) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                    }
+                },
+                actions = {
+                    if (receta != null) {
+                        IconButton(onClick = { onEditar(receta.id) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Editar")
+                        }
+                        IconButton(onClick = onEliminarClick) {
+                            Icon(Icons.Default.Delete, contentDescription = "Eliminar")
+                        }
                     }
                 },
             )

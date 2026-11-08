@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +37,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.perezgomez.recetario.domain.model.Receta
+import com.perezgomez.recetario.presentation.components.ConfirmarEliminarDialog
 import com.perezgomez.recetario.presentation.components.PantallaCargando
 import com.perezgomez.recetario.presentation.components.PantallaError
 import com.perezgomez.recetario.presentation.viewmodels.HomeViewModel
@@ -78,9 +80,19 @@ fun HomeScreen(
         snackbarHostState = snackbarHostState,
         onNuevaReceta = onNuevaReceta,
         onVerDetalle = onVerDetalle,
+        onEliminarClick = viewModel::onEliminarClick,
         onReintentar = viewModel::cargar,
         onCerrarSesion = viewModel::onCerrarSesion,
     )
+
+    state.recetaAEliminar?.let { receta ->
+        ConfirmarEliminarDialog(
+            titulo = receta.titulo,
+            cargando = state.eliminando,
+            onConfirmar = viewModel::onConfirmarEliminar,
+            onCancelar = viewModel::onCancelarEliminar,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -90,6 +102,7 @@ fun HomeContent(
     snackbarHostState: SnackbarHostState,
     onNuevaReceta: () -> Unit,
     onVerDetalle: (String) -> Unit,
+    onEliminarClick: (Receta) -> Unit,
     onReintentar: () -> Unit,
     onCerrarSesion: () -> Unit,
 ) {
@@ -142,6 +155,7 @@ fun HomeContent(
                         RecetaItem(
                             receta = receta,
                             onClick = { onVerDetalle(receta.id) },
+                            onEliminar = { onEliminarClick(receta) },
                         )
                     }
                 }
@@ -151,7 +165,7 @@ fun HomeContent(
 }
 
 @Composable
-private fun RecetaItem(receta: Receta, onClick: () -> Unit) {
+private fun RecetaItem(receta: Receta, onClick: () -> Unit, onEliminar: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -172,6 +186,9 @@ private fun RecetaItem(receta: Receta, onClick: () -> Unit) {
                     contentDescription = "Favorita",
                     tint = MaterialTheme.colorScheme.primary,
                 )
+            }
+            IconButton(onClick = onEliminar) {
+                Icon(Icons.Default.Delete, contentDescription = "Eliminar receta")
             }
         }
     }

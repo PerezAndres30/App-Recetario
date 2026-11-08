@@ -10,5 +10,8 @@ sealed interface DetalleContenido {
 
 data class DetalleUiState(
     val contenido: DetalleContenido = DetalleContenido.Cargando,
+    val confirmandoEliminar: Boolean = false,
+    val eliminando: Boolean = false,
+    val eliminada: Boolean = false,
     val mensaje: String? = null,
 )

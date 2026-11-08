@@ -42,5 +42,25 @@ class DetalleViewModel(
         }
     }
 
+    fun onEliminarClick() = _uiState.update { it.copy(confirmandoEliminar = true) }
+
+    fun onCancelarEliminar() = _uiState.update { it.copy(confirmandoEliminar = false) }
+
+    fun onConfirmarEliminar() {
+        if (_uiState.value.eliminando) return
+        _uiState.update { it.copy(eliminando = true) }
+        viewModelScope.launch {
+            recetaRepository.eliminar(recetaId)
+                .onSuccess {
+                    _uiState.update { it.copy(eliminando = false, confirmandoEliminar = false, eliminada = true) }
+                }
+                .onFailure { e ->
+                    _uiState.update {
+                        it.copy(eliminando = false, confirmandoEliminar = false, mensaje = e.message)
+                    }
+                }
+        }
+    }
+
     fun onMensajeMostrado() = _uiState.update { it.copy(mensaje = null) }
 }

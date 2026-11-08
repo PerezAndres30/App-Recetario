@@ -12,4 +12,5 @@ fun appViewModelFactory(container: AppContainer): ViewModelProvider.Factory = vi
     initializer { RegisterViewModel(container.authRepository) }
     initializer { HomeViewModel(container.recetaRepository, container.authRepository) }
     initializer { DetalleViewModel(container.recetaRepository, createSavedStateHandle()) }
+    initializer { FormViewModel(container.recetaRepository, createSavedStateHandle()) }
 }
