@@ -3,13 +3,16 @@ package com.perezgomez.recetario.data.remote
 import com.perezgomez.recetario.data.dto.ErrorDto
 import com.perezgomez.recetario.domain.error.AppException
 import java.io.IOException
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
 
 /** Ejecuta llamadas a la API y convierte cualquier fallo en un [AppException] con mensaje legible. */
-class ApiCaller(private val json: Json) {
+@Singleton
+class ApiCaller @Inject constructor(private val json: Json) {
 
     suspend fun <T> call(block: suspend () -> T): Result<T> = try {
         Result.success(block())

@@ -3,8 +3,12 @@ package com.perezgomez.recetario.data.local
 import android.content.Context
 import com.perezgomez.recetario.domain.model.Usuario
 import com.perezgomez.recetario.domain.session.SessionStorage
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
 
-class SharedPrefsSessionStorage(context: Context) : SessionStorage {
+class SharedPrefsSessionStorage @Inject constructor(
+    @ApplicationContext context: Context,
+) : SessionStorage {
 
     private val prefs = context.applicationContext
         .getSharedPreferences(NOMBRE_ARCHIVO, Context.MODE_PRIVATE)

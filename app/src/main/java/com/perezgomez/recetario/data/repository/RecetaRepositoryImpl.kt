@@ -7,8 +7,11 @@ import com.perezgomez.recetario.data.mapper.toRequestDto
 import com.perezgomez.recetario.data.remote.ApiCaller
 import com.perezgomez.recetario.domain.model.Receta
 import com.perezgomez.recetario.domain.repository.RecetaRepository
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class RecetaRepositoryImpl(
+@Singleton
+class RecetaRepositoryImpl @Inject constructor(
     private val api: RecetaApiService,
     private val apiCaller: ApiCaller,
 ) : RecetaRepository {

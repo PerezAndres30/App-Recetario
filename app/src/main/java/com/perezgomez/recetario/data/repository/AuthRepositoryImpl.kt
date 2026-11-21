@@ -9,8 +9,11 @@ import com.perezgomez.recetario.data.remote.ApiCaller
 import com.perezgomez.recetario.domain.model.Usuario
 import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.domain.session.SessionStorage
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class AuthRepositoryImpl(
+@Singleton
+class AuthRepositoryImpl @Inject constructor(
     private val api: AuthApiService,
     private val session: SessionStorage,
     private val apiCaller: ApiCaller,
