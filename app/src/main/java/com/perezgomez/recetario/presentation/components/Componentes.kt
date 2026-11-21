@@ -93,7 +93,7 @@ fun ConfirmarEliminarDialog(
     AlertDialog(
         onDismissRequest = { if (!cargando) onCancelar() },
         title = { Text("Eliminar receta") },
-        text = { Text("¿Seguro que quieres eliminar \"$titulo\"? Esta acción no se puede deshacer.") },
+        text = { Text("¿Seguro que deseas eliminar \"$titulo\"? Esta acción es permanente y no se puede deshacer.") },
         confirmButton = {
             TextButton(onClick = onConfirmar, enabled = !cargando) {
                 Text(if (cargando) "Eliminando..." else "Eliminar")
