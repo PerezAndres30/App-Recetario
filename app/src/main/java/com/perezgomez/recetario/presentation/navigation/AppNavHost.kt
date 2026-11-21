@@ -2,9 +2,8 @@ package com.perezgomez.recetario.presentation.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -12,7 +11,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.perezgomez.recetario.di.AppContainer
 import com.perezgomez.recetario.presentation.screens.DetalleScreen
 import com.perezgomez.recetario.presentation.screens.FormScreen
 import com.perezgomez.recetario.presentation.screens.HomeScreen
@@ -23,21 +21,17 @@ import com.perezgomez.recetario.presentation.viewmodels.FormViewModel
 import com.perezgomez.recetario.presentation.viewmodels.HomeViewModel
 import com.perezgomez.recetario.presentation.viewmodels.LoginViewModel
 import com.perezgomez.recetario.presentation.viewmodels.RegisterViewModel
-import com.perezgomez.recetario.presentation.viewmodels.appViewModelFactory
 
 @Composable
 fun AppNavHost(
-    container: AppContainer,
     startDestination: String,
     navController: NavHostController = rememberNavController(),
 ) {
-    val factory = remember(container) { appViewModelFactory(container) }
-
     NavHost(navController = navController, startDestination = startDestination) {
 
         composable(Rutas.LOGIN) {
             LoginScreen(
-                viewModel = viewModel<LoginViewModel>(factory = factory),
+                viewModel = hiltViewModel<LoginViewModel>(),
                 onAutenticado = { navController.irAHomeLimpiandoPila() },
                 onIrARegistro = { navController.navigate(Rutas.REGISTRO) },
             )
@@ -45,7 +39,7 @@ fun AppNavHost(
 
         composable(Rutas.REGISTRO) {
             RegisterScreen(
-                viewModel = viewModel<RegisterViewModel>(factory = factory),
+                viewModel = hiltViewModel<RegisterViewModel>(),
                 onRegistrado = { navController.irAHomeLimpiandoPila() },
                 onVolver = { navController.popBackStack() },
             )
@@ -54,7 +48,7 @@ fun AppNavHost(
         composable(Rutas.HOME) { entry ->
             val mensajeNav by entry.mensajeNavegacion()
             HomeScreen(
-                viewModel = viewModel<HomeViewModel>(factory = factory),
+                viewModel = hiltViewModel<HomeViewModel>(),
                 mensajeNav = mensajeNav,
                 onMensajeNavMostrado = { entry.savedStateHandle.set<String>(Rutas.MENSAJE_NAV, null) },
                 onNuevaReceta = { navController.navigate(Rutas.formulario()) },
@@ -74,7 +68,7 @@ fun AppNavHost(
         ) { entry ->
             val mensajeNav by entry.mensajeNavegacion()
             DetalleScreen(
-                viewModel = viewModel<DetalleViewModel>(factory = factory),
+                viewModel = hiltViewModel<DetalleViewModel>(),
                 mensajeNav = mensajeNav,
                 onMensajeNavMostrado = { entry.savedStateHandle.set<String>(Rutas.MENSAJE_NAV, null) },
                 onVolver = { navController.popBackStack() },
@@ -94,7 +88,7 @@ fun AppNavHost(
             ),
         ) {
             FormScreen(
-                viewModel = viewModel<FormViewModel>(factory = factory),
+                viewModel = hiltViewModel<FormViewModel>(),
                 onVolver = { navController.popBackStack() },
                 onGuardado = { mensaje -> navController.volverConMensaje(mensaje) },
             )

@@ -7,13 +7,16 @@ import com.perezgomez.recetario.domain.repository.RecetaRepository
 import com.perezgomez.recetario.presentation.navigation.Rutas
 import com.perezgomez.recetario.presentation.screens.DetalleContenido
 import com.perezgomez.recetario.presentation.screens.DetalleUiState
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class DetalleViewModel(
+@HiltViewModel
+class DetalleViewModel @Inject constructor(
     private val recetaRepository: RecetaRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {

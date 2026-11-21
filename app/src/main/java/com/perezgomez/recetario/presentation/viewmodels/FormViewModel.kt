@@ -11,6 +11,8 @@ import com.perezgomez.recetario.presentation.navigation.Rutas
 import com.perezgomez.recetario.presentation.screens.FormErrores
 import com.perezgomez.recetario.presentation.screens.FormUiState
 import com.perezgomez.recetario.presentation.screens.IngredienteForm
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,7 +20,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Un solo ViewModel para crear y editar: si llega un id por navegación, precarga la receta. */
-class FormViewModel(
+@HiltViewModel
+class FormViewModel @Inject constructor(
     private val recetaRepository: RecetaRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {

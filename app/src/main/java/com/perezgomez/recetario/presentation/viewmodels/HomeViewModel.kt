@@ -7,13 +7,16 @@ import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.domain.repository.RecetaRepository
 import com.perezgomez.recetario.presentation.screens.HomeUiState
 import com.perezgomez.recetario.presentation.screens.ListaUi
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class HomeViewModel(
+@HiltViewModel
+class HomeViewModel @Inject constructor(
     private val recetaRepository: RecetaRepository,
     private val authRepository: AuthRepository,
 ) : ViewModel() {
