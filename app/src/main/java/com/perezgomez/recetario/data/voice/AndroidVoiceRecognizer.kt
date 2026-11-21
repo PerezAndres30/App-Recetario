@@ -11,6 +11,7 @@ import android.speech.SpeechRecognizer
 import com.perezgomez.recetario.domain.voice.VoiceRecognitionState
 import com.perezgomez.recetario.domain.voice.VoiceRecognizer
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,14 +28,21 @@ class AndroidVoiceRecognizer @Inject constructor(
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
+    private val sessionCounter = AtomicLong(0)
 
-    private val listener = object : RecognitionListener {
+    private fun crearListener(sessionId: Long) = object : RecognitionListener {
+        private fun esValido() = sessionId == sessionCounter.get()
+
         override fun onReadyForSpeech(params: Bundle?) {
-            _state.value = VoiceRecognitionState.Escuchando
+            if (esValido()) {
+                _state.value = VoiceRecognitionState.Escuchando
+            }
         }
 
         override fun onBeginningOfSpeech() {
-            _state.value = VoiceRecognitionState.Escuchando
+            if (esValido()) {
+                _state.value = VoiceRecognitionState.Escuchando
+            }
         }
 
         override fun onRmsChanged(rmsdB: Float) = Unit
@@ -44,6 +52,7 @@ class AndroidVoiceRecognizer @Inject constructor(
         override fun onEndOfSpeech() = Unit
 
         override fun onError(error: Int) {
+            if (!esValido()) return
             val mensaje = when (error) {
                 SpeechRecognizer.ERROR_AUDIO -> "Error de grabación de audio."
                 SpeechRecognizer.ERROR_CLIENT -> "Error en el cliente de voz."
@@ -61,6 +70,7 @@ class AndroidVoiceRecognizer @Inject constructor(
         }
 
         override fun onResults(results: Bundle?) {
+            if (!esValido()) return
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             val texto = matches?.firstOrNull()?.trim().orEmpty()
             if (texto.isNotEmpty()) {
@@ -82,12 +92,14 @@ class AndroidVoiceRecognizer @Inject constructor(
             return
         }
 
+        val newSession = sessionCounter.incrementAndGet()
+
         mainHandler.post {
             try {
                 destruirRecognizer()
 
                 val recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-                    setRecognitionListener(listener)
+                    setRecognitionListener(crearListener(newSession))
                 }
                 speechRecognizer = recognizer
 
@@ -100,8 +112,10 @@ class AndroidVoiceRecognizer @Inject constructor(
                 _state.value = VoiceRecognitionState.Escuchando
                 recognizer.startListening(intent)
             } catch (e: Exception) {
-                _state.value = VoiceRecognitionState.Error(e.message ?: "No se pudo iniciar el dictado por voz.")
-                destruirRecognizer()
+                if (newSession == sessionCounter.get()) {
+                    _state.value = VoiceRecognitionState.Error(e.message ?: "No se pudo iniciar el dictado por voz.")
+                    destruirRecognizer()
+                }
             }
         }
     }
@@ -114,11 +128,16 @@ class AndroidVoiceRecognizer @Inject constructor(
         }
     }
 
-    override fun limpiar() {
+    override fun cancelar() {
+        sessionCounter.incrementAndGet()
         mainHandler.post {
             destruirRecognizer()
             _state.value = VoiceRecognitionState.Inactivo
         }
+    }
+
+    override fun limpiar() {
+        cancelar()
     }
 
     private fun destruirRecognizer() {

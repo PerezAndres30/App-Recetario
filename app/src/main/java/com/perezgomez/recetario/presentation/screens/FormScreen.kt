@@ -102,7 +102,7 @@ fun FormScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            viewModel.onDetenerDictado()
+            viewModel.onCancelarDictado()
         }
     }
 

@@ -59,6 +59,9 @@ class FormViewModel @Inject constructor(
                             )
                         }
                     }
+                    is VoiceRecognitionState.Inactivo -> {
+                        _uiState.update { it.copy(campoDictadoActivo = null) }
+                    }
                     else -> Unit
                 }
             }
@@ -200,9 +203,14 @@ class FormViewModel @Inject constructor(
         val escuchando = _uiState.value.estadoDictado is VoiceRecognitionState.Escuchando
 
         if (actual == campo && escuchando) {
+            // Usuario presiona el micrófono del campo activo mientras graba -> Detener y procesar audio
             voiceRecognizer.detener()
-            _uiState.update { it.copy(campoDictadoActivo = null) }
+            // Se mantiene campoDictadoActivo para que el resultado asíncrono se inserte en este campo.
         } else {
+            // Si estaba grabando en otro campo, cancelamos la sesión anterior para evitar mezclar campos
+            if (escuchando && actual != null && actual != campo) {
+                voiceRecognizer.cancelar()
+            }
             _uiState.update { it.copy(campoDictadoActivo = campo, mensajeDictado = null) }
             voiceRecognizer.iniciar()
         }
@@ -210,11 +218,16 @@ class FormViewModel @Inject constructor(
 
     fun onDetenerDictado() {
         voiceRecognizer.detener()
+        // Permitimos que onResults complete la inserción en el campo activo
+    }
+
+    fun onCancelarDictado() {
+        voiceRecognizer.cancelar()
         _uiState.update { it.copy(campoDictadoActivo = null) }
     }
 
     fun onPermisoMicrofonoDenegado() {
-        voiceRecognizer.detener()
+        voiceRecognizer.cancelar()
         _uiState.update {
             it.copy(
                 campoDictadoActivo = null,

@@ -6,5 +6,6 @@ interface VoiceRecognizer {
     val state: StateFlow<VoiceRecognitionState>
     fun iniciar(idioma: String = "es-ES")
     fun detener()
+    fun cancelar()
     fun limpiar()
 }
