@@ -1,0 +1,114 @@
+package com.perezgomez.recetario.util
+
+import com.perezgomez.recetario.domain.model.Receta
+import com.perezgomez.recetario.domain.model.Usuario
+import com.perezgomez.recetario.domain.repository.AuthRepository
+import com.perezgomez.recetario.domain.repository.RecetaRepository
+import com.perezgomez.recetario.domain.voice.VoiceRecognitionState
+import com.perezgomez.recetario.domain.voice.VoiceRecognizer
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+class FakeRecetaRepository : RecetaRepository {
+    val recetas = mutableListOf<Receta>()
+    var deberiaFallar: Boolean = false
+    var mensajeError: String = "Error simulado en repositorio"
+
+    var llamadasListar: Int = 0
+    var llamadasCrear: Int = 0
+    var llamadasActualizar: Int = 0
+    var llamadasEliminar: Int = 0
+
+    override suspend fun listar(): Result<List<Receta>> {
+        llamadasListar++
+        return if (deberiaFallar) Result.failure(Exception(mensajeError))
+        else Result.success(recetas.toList())
+    }
+
+    override suspend fun obtener(id: String): Result<Receta> {
+        val receta = recetas.find { it.id == id }
+        return if (deberiaFallar || receta == null) {
+            Result.failure(Exception(mensajeError))
+        } else {
+            Result.success(receta)
+        }
+    }
+
+    override suspend fun crear(receta: Receta): Result<Receta> {
+        llamadasCrear++
+        return if (deberiaFallar) {
+            Result.failure(Exception(mensajeError))
+        } else {
+            val creada = receta.copy(id = if (receta.id.isBlank()) "id-${recetas.size + 1}" else receta.id)
+            recetas.add(creada)
+            Result.success(creada)
+        }
+    }
+
+    override suspend fun actualizar(receta: Receta): Result<Receta> {
+        llamadasActualizar++
+        return if (deberiaFallar) {
+            Result.failure(Exception(mensajeError))
+        } else {
+            val index = recetas.indexOfFirst { it.id == receta.id }
+            if (index != -1) recetas[index] = receta
+            Result.success(receta)
+        }
+    }
+
+    override suspend fun eliminar(id: String): Result<Unit> {
+        llamadasEliminar++
+        return if (deberiaFallar) {
+            Result.failure(Exception(mensajeError))
+        } else {
+            recetas.removeAll { it.id == id }
+            Result.success(Unit)
+        }
+    }
+}
+
+class FakeAuthRepository(
+    private var usuario: Usuario? = Usuario("user-1", "Chef Ivan", "ivan@test.com"),
+) : AuthRepository {
+    override fun haySesion(): Boolean = usuario != null
+    override fun usuarioActual(): Usuario? = usuario
+    override suspend fun iniciarSesion(correo: String, password: String): Result<Usuario> =
+        Result.success(usuario ?: Usuario("user-1", "Chef Ivan", correo))
+    override suspend fun registrar(nombre: String, correo: String, password: String): Result<Usuario> =
+        Result.success(Usuario("user-1", nombre, correo))
+    override fun cerrarSesion() { usuario = null }
+}
+
+class FakeVoiceRecognizer : VoiceRecognizer {
+    private val _state = MutableStateFlow<VoiceRecognitionState>(VoiceRecognitionState.Inactivo)
+    override val state: StateFlow<VoiceRecognitionState> = _state.asStateFlow()
+
+    var llamadasIniciar: Int = 0
+    var llamadasDetener: Int = 0
+    var llamadasCancelar: Int = 0
+    var llamadasLimpiar: Int = 0
+
+    fun emitirEstado(nuevoEstado: VoiceRecognitionState) {
+        _state.value = nuevoEstado
+    }
+
+    override fun iniciar(idioma: String) {
+        llamadasIniciar++
+        _state.value = VoiceRecognitionState.Escuchando
+    }
+
+    override fun detener() {
+        llamadasDetener++
+    }
+
+    override fun cancelar() {
+        llamadasCancelar++
+        _state.value = VoiceRecognitionState.Inactivo
+    }
+
+    override fun limpiar() {
+        llamadasLimpiar++
+        _state.value = VoiceRecognitionState.Inactivo
+    }
+}
