@@ -5,9 +5,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -15,7 +19,10 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -24,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -32,13 +40,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.perezgomez.recetario.domain.model.Receta
 import com.perezgomez.recetario.presentation.components.ConfirmarEliminarDialog
-import com.perezgomez.recetario.presentation.components.PantallaCargando
 import com.perezgomez.recetario.presentation.components.PantallaError
 import com.perezgomez.recetario.presentation.viewmodels.HomeViewModel
 
@@ -82,6 +90,7 @@ fun HomeScreen(
         onVerDetalle = onVerDetalle,
         onEliminarClick = viewModel::onEliminarClick,
         onReintentar = viewModel::cargar,
+        onActualizar = viewModel::cargar,
         onCerrarSesion = viewModel::onCerrarSesion,
     )
 
@@ -104,6 +113,7 @@ fun HomeContent(
     onVerDetalle: (String) -> Unit,
     onEliminarClick: (Receta) -> Unit,
     onReintentar: () -> Unit,
+    onActualizar: () -> Unit,
     onCerrarSesion: () -> Unit,
 ) {
     Scaffold(
@@ -121,6 +131,12 @@ fun HomeContent(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = onActualizar,
+                        enabled = !state.actualizando,
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Actualizar recetas")
+                    }
                     IconButton(onClick = onCerrarSesion) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Cerrar sesión")
                     }
@@ -134,29 +150,103 @@ fun HomeContent(
             }
         },
     ) { padding ->
-        Box(modifier = Modifier
-            .padding(padding)
-            .fillMaxSize()) {
-            when (val lista = state.lista) {
-                ListaUi.Cargando -> PantallaCargando()
-                ListaUi.Vacia -> Text(
-                    text = "Aún no tienes recetas.\nToca + para crear la primera.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(24.dp),
-                )
-                is ListaUi.Error -> PantallaError(mensaje = lista.mensaje, onReintentar = onReintentar)
-                is ListaUi.Contenido -> LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize(),
+        ) {
+            if (state.actualizando && state.lista !is ListaUi.Cargando) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    items(lista.recetas, key = { it.id }) { receta ->
-                        RecetaItem(
-                            receta = receta,
-                            onClick = { onVerDetalle(receta.id) },
-                            onEliminar = { onEliminarClick(receta) },
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
                         )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Actualizando tus recetas…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                when (val lista = state.lista) {
+                    ListaUi.Cargando -> Column(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Actualizando tus recetas…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    ListaUi.Vacia -> Column(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            text = "Aún no tienes recetas.",
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Crea tu primera receta para verla aquí.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = onNuevaReceta) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Nueva receta")
+                        }
+                    }
+                    is ListaUi.Error -> PantallaError(
+                        mensaje = lista.mensaje,
+                        onReintentar = onReintentar,
+                    )
+                    is ListaUi.Contenido -> LazyColumn(
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(lista.recetas, key = { it.id }) { receta ->
+                            RecetaItem(
+                                receta = receta,
+                                onClick = { onVerDetalle(receta.id) },
+                                onEliminar = { onEliminarClick(receta) },
+                            )
+                        }
                     }
                 }
             }

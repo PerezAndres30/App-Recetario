@@ -16,4 +16,5 @@ data class HomeUiState(
     val eliminando: Boolean = false,
     val mensaje: String? = null,
     val sesionCerrada: Boolean = false,
+    val actualizando: Boolean = false,
 )

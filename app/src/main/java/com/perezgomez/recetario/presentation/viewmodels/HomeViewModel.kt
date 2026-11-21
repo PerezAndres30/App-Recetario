@@ -29,19 +29,31 @@ class HomeViewModel @Inject constructor(
     /** Se llama cada vez que la pantalla vuelve a primer plano, para reflejar cambios hechos en otras pantallas. */
     fun cargar() {
         val yaHayDatos = _uiState.value.lista is ListaUi.Contenido
-        if (!yaHayDatos) _uiState.update { it.copy(lista = ListaUi.Cargando) }
+        _uiState.update {
+            it.copy(
+                lista = if (yaHayDatos) it.lista else ListaUi.Cargando,
+                actualizando = true,
+            )
+        }
 
         viewModelScope.launch {
             recetaRepository.listar()
                 .onSuccess { recetas ->
                     _uiState.update {
-                        it.copy(lista = if (recetas.isEmpty()) ListaUi.Vacia else ListaUi.Contenido(recetas))
+                        it.copy(
+                            lista = if (recetas.isEmpty()) ListaUi.Vacia else ListaUi.Contenido(recetas),
+                            actualizando = false,
+                        )
                     }
                 }
                 .onFailure { e ->
                     val texto = e.message ?: "No se pudieron cargar las recetas."
                     _uiState.update {
-                        if (yaHayDatos) it.copy(mensaje = texto) else it.copy(lista = ListaUi.Error(texto))
+                        if (yaHayDatos) {
+                            it.copy(mensaje = texto, actualizando = false)
+                        } else {
+                            it.copy(lista = ListaUi.Error(texto), actualizando = false)
+                        }
                     }
                 }
         }
