@@ -404,7 +404,7 @@ fun FormContent(
                 if (state.guardando) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Guardar")
+                    Text(if (state.esEdicion) "Guardar cambios" else "Guardar receta")
                 }
             }
         }
