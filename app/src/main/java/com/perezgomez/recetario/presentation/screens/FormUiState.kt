@@ -1,5 +1,13 @@
 package com.perezgomez.recetario.presentation.screens
 
+import com.perezgomez.recetario.domain.voice.VoiceRecognitionState
+
+sealed interface CampoDictado {
+    data object Descripcion : CampoDictado
+    data class IngredienteNombre(val indice: Int) : CampoDictado
+    data class Paso(val indice: Int) : CampoDictado
+}
+
 data class IngredienteForm(
     val nombre: String = "",
     val cantidad: String = "",
@@ -34,4 +42,7 @@ data class FormUiState(
     val error: String? = null,
     val guardado: Boolean = false,
     val mensajeExito: String = "",
+    val campoDictadoActivo: CampoDictado? = null,
+    val estadoDictado: VoiceRecognitionState = VoiceRecognitionState.Inactivo,
+    val mensajeDictado: String? = null,
 )

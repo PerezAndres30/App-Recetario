@@ -34,6 +34,7 @@ fun CampoTexto(
     unaLinea: Boolean = true,
     lineasMinimas: Int = 1,
     habilitado: Boolean = true,
+    trailingIcon: @Composable (() -> Unit)? = null,
 ) {
     OutlinedTextField(
         value = valor,
@@ -50,6 +51,7 @@ fun CampoTexto(
         enabled = habilitado,
         visualTransformation = if (esPassword) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = if (esPassword) KeyboardType.Password else tipoTeclado),
+        trailingIcon = trailingIcon,
         modifier = modifier.fillMaxWidth(),
     )
 }

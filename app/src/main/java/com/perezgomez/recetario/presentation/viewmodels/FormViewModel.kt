@@ -7,7 +7,10 @@ import com.perezgomez.recetario.domain.model.Ingrediente
 import com.perezgomez.recetario.domain.model.Receta
 import com.perezgomez.recetario.domain.repository.RecetaRepository
 import com.perezgomez.recetario.domain.validation.Validadores
+import com.perezgomez.recetario.domain.voice.VoiceRecognitionState
+import com.perezgomez.recetario.domain.voice.VoiceRecognizer
 import com.perezgomez.recetario.presentation.navigation.Rutas
+import com.perezgomez.recetario.presentation.screens.CampoDictado
 import com.perezgomez.recetario.presentation.screens.FormErrores
 import com.perezgomez.recetario.presentation.screens.FormUiState
 import com.perezgomez.recetario.presentation.screens.IngredienteForm
@@ -24,6 +27,7 @@ import kotlinx.coroutines.launch
 class FormViewModel @Inject constructor(
     private val recetaRepository: RecetaRepository,
     savedStateHandle: SavedStateHandle,
+    private val voiceRecognizer: VoiceRecognizer,
 ) : ViewModel() {
 
     private val recetaId: String? = savedStateHandle[Rutas.ARG_ID]
@@ -36,6 +40,29 @@ class FormViewModel @Inject constructor(
 
     init {
         if (recetaId != null) cargarReceta(recetaId)
+        observarDictado()
+    }
+
+    private fun observarDictado() {
+        viewModelScope.launch {
+            voiceRecognizer.state.collect { estadoVoz ->
+                _uiState.update { it.copy(estadoDictado = estadoVoz) }
+                when (estadoVoz) {
+                    is VoiceRecognitionState.Resultado -> {
+                        aplicarTextoDictado(estadoVoz.texto)
+                    }
+                    is VoiceRecognitionState.Error -> {
+                        _uiState.update {
+                            it.copy(
+                                campoDictadoActivo = null,
+                                mensajeDictado = estadoVoz.mensaje,
+                            )
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+        }
     }
 
     fun cargarReceta(id: String = recetaId.orEmpty()) {
@@ -164,6 +191,75 @@ class FormViewModel @Inject constructor(
                 }
                 .onFailure { e -> _uiState.update { it.copy(guardando = false, error = e.message) } }
         }
+    }
+
+    // ---- eventos de dictado por voz --------------------------------------
+
+    fun onToggleDictado(campo: CampoDictado) {
+        val actual = _uiState.value.campoDictadoActivo
+        val escuchando = _uiState.value.estadoDictado is VoiceRecognitionState.Escuchando
+
+        if (actual == campo && escuchando) {
+            voiceRecognizer.detener()
+            _uiState.update { it.copy(campoDictadoActivo = null) }
+        } else {
+            _uiState.update { it.copy(campoDictadoActivo = campo, mensajeDictado = null) }
+            voiceRecognizer.iniciar()
+        }
+    }
+
+    fun onDetenerDictado() {
+        voiceRecognizer.detener()
+        _uiState.update { it.copy(campoDictadoActivo = null) }
+    }
+
+    fun onPermisoMicrofonoDenegado() {
+        voiceRecognizer.detener()
+        _uiState.update {
+            it.copy(
+                campoDictadoActivo = null,
+                mensajeDictado = "Se requiere el permiso de micrófono para utilizar el dictado por voz.",
+            )
+        }
+    }
+
+    fun onMensajeDictadoConsumido() {
+        _uiState.update { it.copy(mensajeDictado = null) }
+    }
+
+    private fun aplicarTextoDictado(textoReconocido: String) {
+        val campo = _uiState.value.campoDictadoActivo ?: return
+        when (campo) {
+            is CampoDictado.Descripcion -> {
+                val actual = _uiState.value.descripcion
+                val nuevo = if (actual.isBlank()) textoReconocido else "$actual $textoReconocido"
+                onDescripcionChange(nuevo)
+            }
+            is CampoDictado.IngredienteNombre -> {
+                val indice = campo.indice
+                val ingrediente = _uiState.value.ingredientes.getOrNull(indice)
+                if (ingrediente != null) {
+                    val actual = ingrediente.nombre
+                    val nuevo = if (actual.isBlank()) textoReconocido else "$actual $textoReconocido"
+                    onIngredienteChange(indice, ingrediente.copy(nombre = nuevo))
+                }
+            }
+            is CampoDictado.Paso -> {
+                val indice = campo.indice
+                val paso = _uiState.value.pasos.getOrNull(indice)
+                if (paso != null) {
+                    val actual = paso
+                    val nuevo = if (actual.isBlank()) textoReconocido else "$actual $textoReconocido"
+                    onPasoChange(indice, nuevo)
+                }
+            }
+        }
+        _uiState.update { it.copy(campoDictadoActivo = null) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        voiceRecognizer.limpiar()
     }
 
     // ---- validación -------------------------------------------------------

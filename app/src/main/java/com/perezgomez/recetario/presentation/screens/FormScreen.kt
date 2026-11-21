@@ -1,5 +1,9 @@
 package com.perezgomez.recetario.presentation.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,18 +29,29 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.perezgomez.recetario.domain.model.Categorias
+import com.perezgomez.recetario.domain.voice.VoiceRecognitionState
 import com.perezgomez.recetario.presentation.components.CampoTexto
 import com.perezgomez.recetario.presentation.components.PantallaCargando
 import com.perezgomez.recetario.presentation.viewmodels.FormViewModel
@@ -47,13 +63,63 @@ fun FormScreen(
     onGuardado: (String) -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    var campoPendientePermiso by remember { mutableStateOf<CampoDictado?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { concedido ->
+        val campo = campoPendientePermiso
+        campoPendientePermiso = null
+        if (concedido) {
+            if (campo != null) {
+                viewModel.onToggleDictado(campo)
+            }
+        } else {
+            viewModel.onPermisoMicrofonoDenegado()
+        }
+    }
+
+    val onSolicitarDictado: (CampoDictado) -> Unit = { campo ->
+        val escuchando = state.estadoDictado is VoiceRecognitionState.Escuchando
+        if (state.campoDictadoActivo == campo && escuchando) {
+            viewModel.onToggleDictado(campo)
+        } else {
+            val tienePermiso = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (tienePermiso) {
+                viewModel.onToggleDictado(campo)
+            } else {
+                campoPendientePermiso = campo
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.onDetenerDictado()
+        }
+    }
 
     LaunchedEffect(state.guardado) {
         if (state.guardado) onGuardado(state.mensajeExito)
     }
 
+    LaunchedEffect(state.mensajeDictado) {
+        state.mensajeDictado?.let { mensaje ->
+            snackbarHostState.showSnackbar(mensaje)
+            viewModel.onMensajeDictadoConsumido()
+        }
+    }
+
     FormContent(
         state = state,
+        snackbarHostState = snackbarHostState,
         onVolver = onVolver,
         onTituloChange = viewModel::onTituloChange,
         onDescripcionChange = viewModel::onDescripcionChange,
@@ -68,6 +134,8 @@ fun FormScreen(
         onAgregarPaso = viewModel::onAgregarPaso,
         onQuitarPaso = viewModel::onQuitarPaso,
         onGuardar = viewModel::onGuardar,
+        onSolicitarDictado = onSolicitarDictado,
+        onDetenerDictado = viewModel::onDetenerDictado,
     )
 }
 
@@ -75,6 +143,7 @@ fun FormScreen(
 @Composable
 fun FormContent(
     state: FormUiState,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onVolver: () -> Unit,
     onTituloChange: (String) -> Unit,
     onDescripcionChange: (String) -> Unit,
@@ -89,8 +158,11 @@ fun FormContent(
     onAgregarPaso: () -> Unit,
     onQuitarPaso: (Int) -> Unit,
     onGuardar: () -> Unit,
+    onSolicitarDictado: (CampoDictado) -> Unit = {},
+    onDetenerDictado: () -> Unit = {},
 ) {
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(if (state.esEdicion) "Editar receta" else "Nueva receta") },
@@ -109,6 +181,7 @@ fun FormContent(
 
         val errores = state.errores
         val habilitado = !state.guardando
+        val estaEscuchando = state.estadoDictado is VoiceRecognitionState.Escuchando
 
         Column(
             modifier = Modifier
@@ -119,6 +192,36 @@ fun FormContent(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // Indicador de dictado por voz activo
+            if (estaEscuchando) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                        Text(
+                            text = "Escuchando voz... Habla ahora",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = onDetenerDictado) {
+                            Text("Detener")
+                        }
+                    }
+                }
+            }
+
             CampoTexto(
                 valor = state.titulo,
                 onValorChange = onTituloChange,
@@ -126,6 +229,8 @@ fun FormContent(
                 error = errores.titulo,
                 habilitado = habilitado,
             )
+
+            val escuchandoDescripcion = state.campoDictadoActivo == CampoDictado.Descripcion && estaEscuchando
             CampoTexto(
                 valor = state.descripcion,
                 onValorChange = onDescripcionChange,
@@ -134,6 +239,18 @@ fun FormContent(
                 unaLinea = false,
                 lineasMinimas = 2,
                 habilitado = habilitado,
+                trailingIcon = {
+                    IconButton(
+                        onClick = { onSolicitarDictado(CampoDictado.Descripcion) },
+                        enabled = habilitado,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = if (escuchandoDescripcion) "Detener dictado" else "Dictar descripción",
+                            tint = if (escuchandoDescripcion) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
             )
 
             Text("Categoría", style = MaterialTheme.typography.titleSmall)
@@ -183,6 +300,7 @@ fun FormContent(
             // ---- Ingredientes ----
             Text("Ingredientes", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
             state.ingredientes.forEachIndexed { indice, ingrediente ->
+                val escuchandoIngrediente = state.campoDictadoActivo == CampoDictado.IngredienteNombre(indice) && estaEscuchando
                 Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Column(modifier = Modifier.weight(1f)) {
                         CampoTexto(
@@ -190,6 +308,18 @@ fun FormContent(
                             onValorChange = { onIngredienteChange(indice, ingrediente.copy(nombre = it)) },
                             etiqueta = "Ingrediente",
                             habilitado = habilitado,
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = { onSolicitarDictado(CampoDictado.IngredienteNombre(indice)) },
+                                    enabled = habilitado,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Mic,
+                                        contentDescription = if (escuchandoIngrediente) "Detener dictado" else "Dictar ingrediente",
+                                        tint = if (escuchandoIngrediente) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            },
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
                             CampoTexto(
@@ -224,6 +354,7 @@ fun FormContent(
             // ---- Pasos ----
             Text("Pasos", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
             state.pasos.forEachIndexed { indice, paso ->
+                val escuchandoPaso = state.campoDictadoActivo == CampoDictado.Paso(indice) && estaEscuchando
                 Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     CampoTexto(
                         valor = paso,
@@ -233,6 +364,18 @@ fun FormContent(
                         lineasMinimas = 2,
                         habilitado = habilitado,
                         modifier = Modifier.weight(1f),
+                        trailingIcon = {
+                            IconButton(
+                                onClick = { onSolicitarDictado(CampoDictado.Paso(indice)) },
+                                enabled = habilitado,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Mic,
+                                    contentDescription = if (escuchandoPaso) "Detener dictado" else "Dictar paso",
+                                    tint = if (escuchandoPaso) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        },
                     )
                     IconButton(
                         onClick = { onQuitarPaso(indice) },
