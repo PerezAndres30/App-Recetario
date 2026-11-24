@@ -6,8 +6,6 @@ import com.perezgomez.recetario.data.repository.RecetaRepositoryImpl
 import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.domain.repository.RecetaRepository
 import com.perezgomez.recetario.domain.session.SessionStorage
-import com.perezgomez.recetario.data.voice.AndroidVoiceRecognizer
-import com.perezgomez.recetario.domain.voice.VoiceRecognizer
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -35,10 +33,4 @@ abstract class RepositoryModule {
     abstract fun bindRecetaRepository(
         impl: RecetaRepositoryImpl,
     ): RecetaRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindVoiceRecognizer(
-        impl: AndroidVoiceRecognizer,
-    ): VoiceRecognizer
 }

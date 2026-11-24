@@ -3,11 +3,11 @@ package com.perezgomez.recetario.presentation.viewmodels
 import androidx.lifecycle.SavedStateHandle
 import com.perezgomez.recetario.domain.model.Ingrediente
 import com.perezgomez.recetario.domain.model.Receta
-import com.perezgomez.recetario.domain.voice.VoiceRecognitionState
+import com.perezgomez.recetario.domain.model.Usuario
 import com.perezgomez.recetario.presentation.navigation.Rutas
-import com.perezgomez.recetario.presentation.screens.CampoDictado
+import com.perezgomez.recetario.presentation.screens.IngredienteForm
+import com.perezgomez.recetario.util.FakeAuthRepository
 import com.perezgomez.recetario.util.FakeRecetaRepository
-import com.perezgomez.recetario.util.FakeVoiceRecognizer
 import com.perezgomez.recetario.util.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -15,7 +15,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -28,7 +27,7 @@ class FormViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     private lateinit var recetaRepository: FakeRecetaRepository
-    private lateinit var voiceRecognizer: FakeVoiceRecognizer
+    private lateinit var authRepository: FakeAuthRepository
 
     private val recetaExistente = Receta(
         id = "receta-42",
@@ -46,15 +45,15 @@ class FormViewModelTest {
     @Before
     fun setUp() {
         recetaRepository = FakeRecetaRepository()
-        voiceRecognizer = FakeVoiceRecognizer()
+        authRepository = FakeAuthRepository(Usuario("user-1", "Chef Ivan", "ivan@test.com"))
     }
 
     @Test
     fun modoCreacion_inicializaEstadoVacioYNoEdicion() {
         val viewModel = FormViewModel(
             recetaRepository = recetaRepository,
+            authRepository = authRepository,
             savedStateHandle = SavedStateHandle(),
-            voiceRecognizer = voiceRecognizer,
         )
 
         val state = viewModel.uiState.value
@@ -63,6 +62,8 @@ class FormViewModelTest {
         assertEquals("", state.titulo)
         assertEquals("", state.descripcion)
         assertEquals("1", state.porciones)
+        assertEquals(1, state.ingredientes.size)
+        assertEquals(1, state.pasos.size)
     }
 
     @Test
@@ -71,11 +72,10 @@ class FormViewModelTest {
 
         val viewModel = FormViewModel(
             recetaRepository = recetaRepository,
+            authRepository = authRepository,
             savedStateHandle = SavedStateHandle(mapOf(Rutas.ARG_ID to "receta-42")),
-            voiceRecognizer = voiceRecognizer,
         )
 
-        // Estado inicial de edición
         assertTrue(viewModel.uiState.value.esEdicion)
 
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
@@ -97,8 +97,8 @@ class FormViewModelTest {
     fun onGuardar_conCamposVacios_muestraErroresYNoLlamaRepositorio() = runTest {
         val viewModel = FormViewModel(
             recetaRepository = recetaRepository,
+            authRepository = authRepository,
             savedStateHandle = SavedStateHandle(),
-            voiceRecognizer = voiceRecognizer,
         )
 
         viewModel.onGuardar()
@@ -113,14 +113,39 @@ class FormViewModelTest {
     }
 
     @Test
+    fun onGuardar_sinAutenticacion_muestraErrorYNoLlamaRepositorio() = runTest {
+        val authSinSesion = FakeAuthRepository(null)
+        val viewModel = FormViewModel(
+            recetaRepository = recetaRepository,
+            authRepository = authSinSesion,
+            savedStateHandle = SavedStateHandle(),
+        )
+
+        viewModel.onTituloChange("Platillo")
+        viewModel.onCategoriaChange("comida")
+        viewModel.onTiempoChange("10")
+        viewModel.onPorcionesChange("1")
+        viewModel.onPasoChange(0, "Cocinar")
+        val ing = viewModel.uiState.value.ingredientes[0]
+        viewModel.onIngredienteChange(0, ing.copy(nombre = "Ingrediente"))
+
+        viewModel.onGuardar()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.guardando)
+        assertFalse(state.guardado)
+        assertEquals("Debes iniciar sesión para crear o editar recetas.", state.error)
+        assertEquals(0, recetaRepository.llamadasCrear)
+    }
+
+    @Test
     fun onGuardar_bloqueaGuardadosDuplicadosMientrasGuarda() = runTest {
         val viewModel = FormViewModel(
             recetaRepository = recetaRepository,
+            authRepository = authRepository,
             savedStateHandle = SavedStateHandle(),
-            voiceRecognizer = voiceRecognizer,
         )
 
-        // Rellenar datos válidos
         viewModel.onTituloChange("Ensalada César")
         viewModel.onCategoriaChange("comida")
         viewModel.onTiempoChange("20")
@@ -129,16 +154,13 @@ class FormViewModelTest {
         val ing = viewModel.uiState.value.ingredientes[0]
         viewModel.onIngredienteChange(0, ing.copy(nombre = "Lechuga romana"))
 
-        // Primer guardado activa guardando = true
         viewModel.onGuardar()
         assertTrue(viewModel.uiState.value.guardando)
 
-        // Segundo guardado concurrente mientras guardando es true
         viewModel.onGuardar()
 
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
-        // Debe haber invocado crear únicamente 1 vez (el segundo guardado fue bloqueado)
         assertEquals(1, recetaRepository.llamadasCrear)
         assertFalse(viewModel.uiState.value.guardando)
         assertTrue(viewModel.uiState.value.guardado)
@@ -151,8 +173,8 @@ class FormViewModelTest {
 
         val viewModel = FormViewModel(
             recetaRepository = recetaRepository,
+            authRepository = authRepository,
             savedStateHandle = SavedStateHandle(mapOf(Rutas.ARG_ID to "receta-42")),
-            voiceRecognizer = voiceRecognizer,
         )
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
@@ -170,95 +192,50 @@ class FormViewModelTest {
     }
 
     @Test
-    fun dictadoPorVoz_insertaTextoEnCampoDescripcionActivo() = runTest {
+    fun gestionDeIngredientesYPasos_agregarYQuitarModificaListas() {
         val viewModel = FormViewModel(
             recetaRepository = recetaRepository,
+            authRepository = authRepository,
             savedStateHandle = SavedStateHandle(),
-            voiceRecognizer = voiceRecognizer,
         )
-        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.onToggleDictado(CampoDictado.Descripcion)
-        assertEquals(CampoDictado.Descripcion, viewModel.uiState.value.campoDictadoActivo)
+        viewModel.onAgregarIngrediente()
+        assertEquals(2, viewModel.uiState.value.ingredientes.size)
 
-        // El servicio emite resultado reconocido
-        voiceRecognizer.emitirEstado(VoiceRecognitionState.Resultado("Salsa verde picante"))
-        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.onIngredienteChange(1, IngredienteForm("Sal", "1", "cdta"))
+        assertEquals("Sal", viewModel.uiState.value.ingredientes[1].nombre)
 
-        val state = viewModel.uiState.value
-        assertEquals("Salsa verde picante", state.descripcion)
-        assertNull(state.campoDictadoActivo)
+        viewModel.onQuitarIngrediente(0)
+        assertEquals(1, viewModel.uiState.value.ingredientes.size)
+        assertEquals("Sal", viewModel.uiState.value.ingredientes[0].nombre)
+
+        viewModel.onQuitarIngrediente(0)
+        assertEquals(1, viewModel.uiState.value.ingredientes.size)
+
+        viewModel.onAgregarPaso()
+        assertEquals(2, viewModel.uiState.value.pasos.size)
+
+        viewModel.onPasoChange(1, "Servir caliente")
+        assertEquals("Servir caliente", viewModel.uiState.value.pasos[1])
+
+        viewModel.onQuitarPaso(0)
+        assertEquals(1, viewModel.uiState.value.pasos.size)
+        assertEquals("Servir caliente", viewModel.uiState.value.pasos[0])
+
+        viewModel.onQuitarPaso(0)
+        assertEquals(1, viewModel.uiState.value.pasos.size)
     }
 
     @Test
-    fun dictadoPorVoz_concatenaSiYaExistiaTextoPrevio() = runTest {
+    fun cambioDeFavorita_actualizaEstado() {
         val viewModel = FormViewModel(
             recetaRepository = recetaRepository,
+            authRepository = authRepository,
             savedStateHandle = SavedStateHandle(),
-            voiceRecognizer = voiceRecognizer,
         )
-        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
-        viewModel.onDescripcionChange("Receta de la abuela")
-        viewModel.onToggleDictado(CampoDictado.Descripcion)
-
-        voiceRecognizer.emitirEstado(VoiceRecognitionState.Resultado("muy fácil de preparar"))
-        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
-
-        val state = viewModel.uiState.value
-        assertEquals("Receta de la abuela muy fácil de preparar", state.descripcion)
-        assertNull(state.campoDictadoActivo)
-    }
-
-    @Test
-    fun dictadoPorVoz_canceladoNoModificaCamposAnteResultadoTardio() = runTest {
-        val viewModel = FormViewModel(
-            recetaRepository = recetaRepository,
-            savedStateHandle = SavedStateHandle(),
-            voiceRecognizer = voiceRecognizer,
-        )
-        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
-
-        viewModel.onDescripcionChange("Original")
-        viewModel.onToggleDictado(CampoDictado.Descripcion)
-        assertEquals(CampoDictado.Descripcion, viewModel.uiState.value.campoDictadoActivo)
-
-        // Usuario cancela el dictado (por ejemplo, navegando atrás o cerrando el diálogo)
-        viewModel.onCancelarDictado()
-        assertNull(viewModel.uiState.value.campoDictadoActivo)
-
-        // Si llega un resultado asíncrono tardío del engine, no debe alterar el campo
-        voiceRecognizer.emitirEstado(VoiceRecognitionState.Resultado("Audio rezagado"))
-        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
-
-        assertEquals("Original", viewModel.uiState.value.descripcion)
-    }
-
-    @Test
-    fun dictadoPorVoz_cambioDeCampoCancelaSesionPreviaYNoAfectaCampoAnterior() = runTest {
-        val viewModel = FormViewModel(
-            recetaRepository = recetaRepository,
-            savedStateHandle = SavedStateHandle(),
-            voiceRecognizer = voiceRecognizer,
-        )
-        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
-
-        // 1. Inicia dictado en Descripción
-        viewModel.onToggleDictado(CampoDictado.Descripcion)
-        voiceRecognizer.emitirEstado(VoiceRecognitionState.Escuchando)
-        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
-
-        // 2. Cambia al Paso 0 mientras grababa
-        viewModel.onToggleDictado(CampoDictado.Paso(0))
-        assertEquals(CampoDictado.Paso(0), viewModel.uiState.value.campoDictadoActivo)
-
-        // 3. Llega el resultado: debe insertarse en Paso 0 y dejar Descripción vacía
-        voiceRecognizer.emitirEstado(VoiceRecognitionState.Resultado("Hornear a 180 grados"))
-        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
-
-        val state = viewModel.uiState.value
-        assertEquals("", state.descripcion)
-        assertEquals("Hornear a 180 grados", state.pasos[0])
-        assertNull(state.campoDictadoActivo)
+        assertFalse(viewModel.uiState.value.favorita)
+        viewModel.onFavoritaChange(true)
+        assertTrue(viewModel.uiState.value.favorita)
     }
 }

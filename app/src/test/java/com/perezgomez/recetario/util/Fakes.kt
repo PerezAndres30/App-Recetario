@@ -1,11 +1,9 @@
-package com.perezgomez.recetario.util
+﻿package com.perezgomez.recetario.util
 
 import com.perezgomez.recetario.domain.model.Receta
 import com.perezgomez.recetario.domain.model.Usuario
 import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.domain.repository.RecetaRepository
-import com.perezgomez.recetario.domain.voice.VoiceRecognitionState
-import com.perezgomez.recetario.domain.voice.VoiceRecognizer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,37 +76,4 @@ class FakeAuthRepository(
     override suspend fun registrar(nombre: String, correo: String, password: String): Result<Usuario> =
         Result.success(Usuario("user-1", nombre, correo))
     override fun cerrarSesion() { usuario = null }
-}
-
-class FakeVoiceRecognizer : VoiceRecognizer {
-    private val _state = MutableStateFlow<VoiceRecognitionState>(VoiceRecognitionState.Inactivo)
-    override val state: StateFlow<VoiceRecognitionState> = _state.asStateFlow()
-
-    var llamadasIniciar: Int = 0
-    var llamadasDetener: Int = 0
-    var llamadasCancelar: Int = 0
-    var llamadasLimpiar: Int = 0
-
-    fun emitirEstado(nuevoEstado: VoiceRecognitionState) {
-        _state.value = nuevoEstado
-    }
-
-    override fun iniciar(idioma: String) {
-        llamadasIniciar++
-        _state.value = VoiceRecognitionState.Escuchando
-    }
-
-    override fun detener() {
-        llamadasDetener++
-    }
-
-    override fun cancelar() {
-        llamadasCancelar++
-        _state.value = VoiceRecognitionState.Inactivo
-    }
-
-    override fun limpiar() {
-        llamadasLimpiar++
-        _state.value = VoiceRecognitionState.Inactivo
-    }
 }

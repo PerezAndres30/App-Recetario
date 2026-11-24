@@ -1,9 +1,5 @@
 package com.perezgomez.recetario.presentation.screens
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,7 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -45,27 +39,20 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.perezgomez.recetario.domain.model.Categorias
-import com.perezgomez.recetario.domain.voice.VoiceRecognitionState
 import com.perezgomez.recetario.presentation.components.CampoTexto
 import com.perezgomez.recetario.presentation.components.PantallaCargando
 import com.perezgomez.recetario.presentation.viewmodels.FormViewModel
@@ -77,58 +64,10 @@ fun FormScreen(
     onGuardado: (String) -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var campoPendientePermiso by remember { mutableStateOf<CampoDictado?>(null) }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { concedido ->
-        val campo = campoPendientePermiso
-        campoPendientePermiso = null
-        if (concedido) {
-            if (campo != null) {
-                viewModel.onToggleDictado(campo)
-            }
-        } else {
-            viewModel.onPermisoMicrofonoDenegado()
-        }
-    }
-
-    val onSolicitarDictado: (CampoDictado) -> Unit = { campo ->
-        val escuchando = state.estadoDictado is VoiceRecognitionState.Escuchando
-        if (state.campoDictadoActivo == campo && escuchando) {
-            viewModel.onToggleDictado(campo)
-        } else {
-            val tienePermiso = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.RECORD_AUDIO,
-            ) == PackageManager.PERMISSION_GRANTED
-
-            if (tienePermiso) {
-                viewModel.onToggleDictado(campo)
-            } else {
-                campoPendientePermiso = campo
-                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            viewModel.onCancelarDictado()
-        }
-    }
 
     LaunchedEffect(state.guardado) {
         if (state.guardado) onGuardado(state.mensajeExito)
-    }
-
-    LaunchedEffect(state.mensajeDictado) {
-        state.mensajeDictado?.let { mensaje ->
-            snackbarHostState.showSnackbar(mensaje)
-            viewModel.onMensajeDictadoConsumido()
-        }
     }
 
     FormContent(
@@ -148,8 +87,6 @@ fun FormScreen(
         onAgregarPaso = viewModel::onAgregarPaso,
         onQuitarPaso = viewModel::onQuitarPaso,
         onGuardar = viewModel::onGuardar,
-        onSolicitarDictado = onSolicitarDictado,
-        onDetenerDictado = viewModel::onDetenerDictado,
     )
 }
 
@@ -172,8 +109,6 @@ fun FormContent(
     onAgregarPaso: () -> Unit,
     onQuitarPaso: (Int) -> Unit,
     onGuardar: () -> Unit,
-    onSolicitarDictado: (CampoDictado) -> Unit = {},
-    onDetenerDictado: () -> Unit = {},
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -205,7 +140,6 @@ fun FormContent(
 
         val errores = state.errores
         val habilitado = !state.guardando
-        val estaEscuchando = state.estadoDictado is VoiceRecognitionState.Escuchando
 
         Column(
             modifier = Modifier
@@ -216,55 +150,6 @@ fun FormContent(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Indicador de dictado por voz activo (cápsula verde salvia)
-            if (estaEscuchando) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Mic,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                        }
-                        Text(
-                            text = "Escuchando voz... Habla ahora",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(
-                            onClick = onDetenerDictado,
-                            shape = RoundedCornerShape(20.dp),
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary,
-                            ),
-                        ) {
-                            Text(
-                                text = "Detener",
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
-                }
-            }
-
             // ================= 01 INFORMACIÓN GENERAL =================
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -294,7 +179,6 @@ fun FormContent(
                             habilitado = habilitado,
                         )
 
-                        val escuchandoDescripcion = state.campoDictadoActivo == CampoDictado.Descripcion && estaEscuchando
                         CampoTexto(
                             valor = state.descripcion,
                             onValorChange = onDescripcionChange,
@@ -303,18 +187,6 @@ fun FormContent(
                             unaLinea = false,
                             lineasMinimas = 2,
                             habilitado = habilitado,
-                            trailingIcon = {
-                                IconButton(
-                                    onClick = { onSolicitarDictado(CampoDictado.Descripcion) },
-                                    enabled = habilitado,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Mic,
-                                        contentDescription = if (escuchandoDescripcion) "Detener dictado" else "Dictar descripción",
-                                        tint = if (escuchandoDescripcion) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                    )
-                                }
-                            },
                         )
 
                         Text(
@@ -413,7 +285,6 @@ fun FormContent(
                 )
 
                 state.ingredientes.forEachIndexed { indice, ingrediente ->
-                    val escuchandoIngrediente = state.campoDictadoActivo == CampoDictado.IngredienteNombre(indice) && estaEscuchando
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -434,18 +305,6 @@ fun FormContent(
                                     etiqueta = "Ingrediente ${indice + 1}",
                                     habilitado = habilitado,
                                     modifier = Modifier.weight(1f),
-                                    trailingIcon = {
-                                        IconButton(
-                                            onClick = { onSolicitarDictado(CampoDictado.IngredienteNombre(indice)) },
-                                            enabled = habilitado,
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Mic,
-                                                contentDescription = if (escuchandoIngrediente) "Detener dictado" else "Dictar ingrediente",
-                                                tint = if (escuchandoIngrediente) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                            )
-                                        }
-                                    },
                                 )
                                 IconButton(
                                     onClick = { onQuitarIngrediente(indice) },
@@ -514,7 +373,6 @@ fun FormContent(
                 )
 
                 state.pasos.forEachIndexed { indice, paso ->
-                    val escuchandoPaso = state.campoDictadoActivo == CampoDictado.Paso(indice) && estaEscuchando
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -551,18 +409,6 @@ fun FormContent(
                                 lineasMinimas = 2,
                                 habilitado = habilitado,
                                 modifier = Modifier.weight(1f),
-                                trailingIcon = {
-                                    IconButton(
-                                        onClick = { onSolicitarDictado(CampoDictado.Paso(indice)) },
-                                        enabled = habilitado,
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Mic,
-                                            contentDescription = if (escuchandoPaso) "Detener dictado" else "Dictar paso",
-                                            tint = if (escuchandoPaso) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                        )
-                                    }
-                                },
                             )
 
                             IconButton(
