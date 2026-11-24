@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.domain.repository.RecetaRepository
+import com.perezgomez.recetario.domain.tts.RecetaTtsService
 import com.perezgomez.recetario.presentation.navigation.Rutas
 import com.perezgomez.recetario.presentation.screens.DetalleContenido
 import com.perezgomez.recetario.presentation.screens.DetalleUiState
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 class DetalleViewModel @Inject constructor(
     private val recetaRepository: RecetaRepository,
     private val authRepository: AuthRepository,
+    private val recetaTtsService: RecetaTtsService,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -28,9 +30,18 @@ class DetalleViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(
         DetalleUiState(
             esPropietarioVerificado = authRepository.haySesion() && recetaRepository.esPropietario(recetaId),
+            ttsState = recetaTtsService.estado.value,
         ),
     )
     val uiState: StateFlow<DetalleUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            recetaTtsService.estado.collect { estadoTts ->
+                _uiState.update { it.copy(ttsState = estadoTts) }
+            }
+        }
+    }
 
     fun cargar() {
         val yaHayDatos = _uiState.value.contenido is DetalleContenido.Listo
@@ -52,6 +63,27 @@ class DetalleViewModel @Inject constructor(
         }
     }
 
+    /** Inicia la lectura en voz alta de la receta (título, descripción e ingredientes). */
+    fun onReproducirTts() {
+        val receta = (_uiState.value.contenido as? DetalleContenido.Listo)?.receta ?: return
+        recetaTtsService.reproducir(receta)
+    }
+
+    /** Avanza al siguiente paso de preparación o anuncia la finalización. */
+    fun onContinuarTts() {
+        recetaTtsService.continuar()
+    }
+
+    /** Vuelve a escuchar la introducción o el paso actual. */
+    fun onRepetirTts() {
+        recetaTtsService.repetir()
+    }
+
+    /** Detiene de inmediato la locución activa (por ejemplo, al salir de la pantalla). */
+    fun detenerLectura() {
+        recetaTtsService.detener()
+    }
+
     fun onEliminarClick() {
         if (!_uiState.value.esPropietarioVerificado) return
         _uiState.update { it.copy(confirmandoEliminar = true) }
@@ -65,6 +97,7 @@ class DetalleViewModel @Inject constructor(
         viewModelScope.launch {
             recetaRepository.eliminar(recetaId)
                 .onSuccess {
+                    recetaTtsService.detener()
                     _uiState.update { it.copy(eliminando = false, confirmandoEliminar = false, eliminada = true) }
                 }
                 .onFailure { e ->
@@ -76,4 +109,9 @@ class DetalleViewModel @Inject constructor(
     }
 
     fun onMensajeMostrado() = _uiState.update { it.copy(mensaje = null) }
+
+    override fun onCleared() {
+        super.onCleared()
+        recetaTtsService.detener()
+    }
 }

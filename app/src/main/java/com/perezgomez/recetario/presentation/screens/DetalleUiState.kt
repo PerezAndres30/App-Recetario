@@ -1,6 +1,7 @@
 package com.perezgomez.recetario.presentation.screens
 
 import com.perezgomez.recetario.domain.model.Receta
+import com.perezgomez.recetario.domain.tts.EstadoLectura
 
 sealed interface DetalleContenido {
     data object Cargando : DetalleContenido
@@ -15,4 +16,5 @@ data class DetalleUiState(
     val eliminando: Boolean = false,
     val eliminada: Boolean = false,
     val mensaje: String? = null,
+    val ttsState: EstadoLectura = EstadoLectura(),
 )

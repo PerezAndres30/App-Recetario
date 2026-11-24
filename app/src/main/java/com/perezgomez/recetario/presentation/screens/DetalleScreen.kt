@@ -18,17 +18,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -37,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -51,6 +59,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.perezgomez.recetario.domain.model.Ingrediente
 import com.perezgomez.recetario.domain.model.Receta
+import com.perezgomez.recetario.domain.tts.EstadoLectura
+import com.perezgomez.recetario.domain.tts.EtapaLectura
 import com.perezgomez.recetario.presentation.components.ConfirmarEliminarDialog
 import com.perezgomez.recetario.presentation.components.PantallaCargando
 import com.perezgomez.recetario.presentation.components.PantallaError
@@ -70,6 +80,12 @@ fun DetalleScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.cargar() }
+
+    // Detener la locución al salir de la pantalla o enviarla a segundo plano
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.detenerLectura() }
+    DisposableEffect(Unit) {
+        onDispose { viewModel.detenerLectura() }
+    }
 
     LaunchedEffect(state.mensaje) {
         state.mensaje?.let {
@@ -96,6 +112,9 @@ fun DetalleScreen(
         onEditar = onEditar,
         onEliminarClick = viewModel::onEliminarClick,
         onReintentar = viewModel::cargar,
+        onReproducirTts = viewModel::onReproducirTts,
+        onContinuarTts = viewModel::onContinuarTts,
+        onRepetirTts = viewModel::onRepetirTts,
     )
 
     val receta = (state.contenido as? DetalleContenido.Listo)?.receta
@@ -118,6 +137,9 @@ fun DetalleContent(
     onEditar: (String) -> Unit,
     onEliminarClick: () -> Unit,
     onReintentar: () -> Unit,
+    onReproducirTts: () -> Unit,
+    onContinuarTts: () -> Unit,
+    onRepetirTts: () -> Unit,
 ) {
     val receta = (state.contenido as? DetalleContenido.Listo)?.receta
 
@@ -173,13 +195,27 @@ fun DetalleContent(
                 onReintentar = onReintentar,
                 modifier = Modifier.padding(padding),
             )
-            is DetalleContenido.Listo -> RecetaCompleta(contenido.receta, Modifier.padding(padding))
+            is DetalleContenido.Listo -> RecetaCompleta(
+                receta = contenido.receta,
+                ttsState = state.ttsState,
+                onReproducirTts = onReproducirTts,
+                onContinuarTts = onContinuarTts,
+                onRepetirTts = onRepetirTts,
+                modifier = Modifier.padding(padding),
+            )
         }
     }
 }
 
 @Composable
-private fun RecetaCompleta(receta: Receta, modifier: Modifier = Modifier) {
+private fun RecetaCompleta(
+    receta: Receta,
+    ttsState: EstadoLectura,
+    onReproducirTts: () -> Unit,
+    onContinuarTts: () -> Unit,
+    onRepetirTts: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -187,7 +223,7 @@ private fun RecetaCompleta(receta: Receta, modifier: Modifier = Modifier) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Contenedor Hero superior preparado visualmente para la fotografía (solo visual)
+        // Hero visual superior para fotografía
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
@@ -226,7 +262,6 @@ private fun RecetaCompleta(receta: Receta, modifier: Modifier = Modifier) {
                     )
                 }
 
-                // Insignia de categoría flotante sobre el Hero
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
@@ -260,13 +295,12 @@ private fun RecetaCompleta(receta: Receta, modifier: Modifier = Modifier) {
             }
         }
 
-        // Fila de metadatos (chips redondeados)
+        // Metadatos
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            // Chip de categoría
             Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -279,7 +313,6 @@ private fun RecetaCompleta(receta: Receta, modifier: Modifier = Modifier) {
                 )
             }
 
-            // Metadato de tiempo
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 4.dp),
@@ -298,7 +331,6 @@ private fun RecetaCompleta(receta: Receta, modifier: Modifier = Modifier) {
                 )
             }
 
-            // Metadato de porciones
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 4.dp),
@@ -312,7 +344,6 @@ private fun RecetaCompleta(receta: Receta, modifier: Modifier = Modifier) {
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Favorita
             if (receta.favorita) {
                 Surface(
                     shape = CircleShape,
@@ -330,6 +361,14 @@ private fun RecetaCompleta(receta: Receta, modifier: Modifier = Modifier) {
                 }
             }
         }
+
+        // ================= ASISTENTE TEXT-TO-SPEECH (TTS) =================
+        SeccionLecturaVoz(
+            ttsState = ttsState,
+            onReproducir = onReproducirTts,
+            onContinuar = onContinuarTts,
+            onRepetir = onRepetirTts,
+        )
 
         // ================= 02 INGREDIENTES =================
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -399,29 +438,49 @@ private fun RecetaCompleta(receta: Receta, modifier: Modifier = Modifier) {
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     receta.pasos.forEachIndexed { indice, paso ->
-                        Row(
-                            verticalAlignment = Alignment.Top,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        val enLectura = ttsState.etapa == EtapaLectura.PASO && ttsState.pasoActual == indice + 1
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (enLectura) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                            else MaterialTheme.colorScheme.surface,
+                            border = if (enLectura) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(26.dp),
+                            Row(
+                                modifier = Modifier.padding(8.dp),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (enLectura) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.size(26.dp),
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "${indice + 1}",
+                                            color = if (enLectura) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        )
+                                    }
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "${indice + 1}",
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        text = paso,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                     )
+                                    if (enLectura) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Leyendo este paso...",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
                                 }
                             }
-                            Text(
-                                text = paso,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f),
-                            )
                         }
                     }
                 }
@@ -435,6 +494,216 @@ private fun RecetaCompleta(receta: Receta, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
+        }
+    }
+}
+
+/**
+ * Tarjeta de control de lectura TextToSpeech.
+ * Contiene los tres controles requeridos (Reproducir, Continuar, Repetir),
+ * muestra el progreso del paso actual y el estado de finalización.
+ */
+@Composable
+private fun SeccionLecturaVoz(
+    ttsState: EstadoLectura,
+    onReproducir: () -> Unit,
+    onContinuar: () -> Unit,
+    onRepetir: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = "01 LECTURA POR VOZ ASISTIDA",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+            ),
+            color = MaterialTheme.colorScheme.primary,
+        )
+
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (ttsState.estaReproduciendo) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+            ),
+            border = BorderStroke(
+                width = if (ttsState.estaReproduciendo) 1.5.dp else 1.dp,
+                color = if (ttsState.estaReproduciendo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (ttsState.estaReproduciendo) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = "Lectura de receta",
+                                tint = if (ttsState.estaReproduciendo) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = when (ttsState.etapa) {
+                                EtapaLectura.INACTIVO -> "Lectura en voz alta"
+                                EtapaLectura.INTRODUCCION -> "Leyendo introducción"
+                                EtapaLectura.PASO -> "Paso ${ttsState.pasoActual} de ${ttsState.totalPasos}"
+                                EtapaLectura.FINALIZADO -> "Receta completada"
+                            },
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+
+                        Text(
+                            text = when (ttsState.etapa) {
+                                EtapaLectura.INACTIVO -> "Escucha el título, ingredientes y cada paso sin tocar la pantalla."
+                                EtapaLectura.INTRODUCCION -> "Título, descripción e ingredientes. Presiona Continuar para el paso 1."
+                                EtapaLectura.PASO -> "Presiona Continuar para avanzar o Repetir para volver a escuchar."
+                                EtapaLectura.FINALIZADO -> "¡Has concluido la receta! Presiona Reproducir para reiniciar."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = when {
+                            ttsState.estaReproduciendo -> MaterialTheme.colorScheme.primary
+                            ttsState.esFinalizado -> MaterialTheme.colorScheme.secondary
+                            ttsState.estaActivo -> MaterialTheme.colorScheme.primaryContainer
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        },
+                    ) {
+                        Text(
+                            text = when {
+                                ttsState.estaReproduciendo -> "Leyendo"
+                                ttsState.esFinalizado -> "Finalizada"
+                                ttsState.estaActivo -> "En pausa"
+                                else -> "Lista"
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = when {
+                                ttsState.estaReproduciendo -> MaterialTheme.colorScheme.onPrimary
+                                ttsState.esFinalizado -> MaterialTheme.colorScheme.onSecondary
+                                ttsState.estaActivo -> MaterialTheme.colorScheme.onPrimaryContainer
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+
+                if (ttsState.totalPasos > 0 && ttsState.estaActivo) {
+                    val progreso = when (ttsState.etapa) {
+                        EtapaLectura.INTRODUCCION -> 0.1f
+                        EtapaLectura.PASO -> ttsState.pasoActual / ttsState.totalPasos.toFloat()
+                        EtapaLectura.FINALIZADO -> 1f
+                        EtapaLectura.INACTIVO -> 0f
+                    }
+                    LinearProgressIndicator(
+                        progress = { progreso },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                    )
+                }
+
+                if (ttsState.error != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = ttsState.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(8.dp),
+                        )
+                    }
+                }
+
+                // Fila con los 3 controles: Reproducir, Continuar, Repetir
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Button(
+                        onClick = onReproducir,
+                        enabled = ttsState.etapa == EtapaLectura.INACTIVO || ttsState.etapa == EtapaLectura.FINALIZADO,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (ttsState.esFinalizado) "Reiniciar" else "Reproducir",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onContinuar,
+                        enabled = ttsState.puedeContinuar,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Continuar",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onRepetir,
+                        enabled = ttsState.puedeRepetir,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Replay,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Repetir",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -466,13 +735,22 @@ private fun DetalleScreenPreview() {
                         favorita = true,
                         creadaEn = "2026-11-20T10:00:00Z",
                     )
-                )
+                ),
+                ttsState = EstadoLectura(
+                    etapa = EtapaLectura.PASO,
+                    pasoActual = 2,
+                    totalPasos = 3,
+                    estaReproduciendo = true,
+                ),
             ),
             snackbarHostState = remember { SnackbarHostState() },
             onVolver = {},
             onEditar = {},
             onEliminarClick = {},
             onReintentar = {},
+            onReproducirTts = {},
+            onContinuarTts = {},
+            onRepetirTts = {},
         )
     }
 }
