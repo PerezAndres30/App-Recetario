@@ -145,7 +145,7 @@ fun DetalleContent(
                     }
                 },
                 actions = {
-                    if (receta != null) {
+                    if (receta != null && state.esPropietarioVerificado) {
                         IconButton(onClick = { onEditar(receta.id) }) {
                             Icon(
                                 imageVector = Icons.Default.Edit,

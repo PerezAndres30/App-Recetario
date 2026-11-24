@@ -1,6 +1,7 @@
-package com.perezgomez.recetario.presentation.navigation
+﻿package com.perezgomez.recetario.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -11,10 +12,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.perezgomez.recetario.domain.repository.AuthRepository
+import com.perezgomez.recetario.presentation.screens.BienvenidaScreen
 import com.perezgomez.recetario.presentation.screens.DetalleScreen
 import com.perezgomez.recetario.presentation.screens.FormScreen
 import com.perezgomez.recetario.presentation.screens.HomeScreen
 import com.perezgomez.recetario.presentation.screens.LoginScreen
+import com.perezgomez.recetario.presentation.screens.ModoHome
 import com.perezgomez.recetario.presentation.screens.RegisterScreen
 import com.perezgomez.recetario.presentation.viewmodels.DetalleViewModel
 import com.perezgomez.recetario.presentation.viewmodels.FormViewModel
@@ -25,15 +29,25 @@ import com.perezgomez.recetario.presentation.viewmodels.RegisterViewModel
 @Composable
 fun AppNavHost(
     startDestination: String,
+    authRepository: AuthRepository,
     navController: NavHostController = rememberNavController(),
 ) {
     NavHost(navController = navController, startDestination = startDestination) {
+
+        composable(Rutas.BIENVENIDA) {
+            BienvenidaScreen(
+                onExplorarVisitante = { navController.navigate(Rutas.EXPLORAR) },
+                onIniciarSesion = { navController.navigate(Rutas.LOGIN) },
+                onCrearCuenta = { navController.navigate(Rutas.REGISTRO) },
+            )
+        }
 
         composable(Rutas.LOGIN) {
             LoginScreen(
                 viewModel = hiltViewModel<LoginViewModel>(),
                 onAutenticado = { navController.irAHomeLimpiandoPila() },
                 onIrARegistro = { navController.navigate(Rutas.REGISTRO) },
+                onContinuarComoVisitante = { navController.navigate(Rutas.EXPLORAR) },
             )
         }
 
@@ -42,24 +56,52 @@ fun AppNavHost(
                 viewModel = hiltViewModel<RegisterViewModel>(),
                 onRegistrado = { navController.irAHomeLimpiandoPila() },
                 onVolver = { navController.popBackStack() },
+                onContinuarComoVisitante = { navController.navigate(Rutas.EXPLORAR) },
             )
         }
 
-        composable(Rutas.HOME) { entry ->
+        // CatÃ¡logo pÃºblico: accesible tanto para visitantes como para usuarios autenticados
+        composable(Rutas.EXPLORAR) { entry ->
             val mensajeNav by entry.mensajeNavegacion()
             HomeScreen(
                 viewModel = hiltViewModel<HomeViewModel>(),
+                modo = ModoHome.EXPLORAR,
                 mensajeNav = mensajeNav,
                 onMensajeNavMostrado = { entry.savedStateHandle.set<String>(Rutas.MENSAJE_NAV, null) },
-                onNuevaReceta = { navController.navigate(Rutas.formulario()) },
-                onVerDetalle = { id -> navController.navigate(Rutas.detalle(id)) },
-                // Cerrar sesión: se vacía toda la pila para que "Atrás" no regrese a Home.
-                onSesionCerrada = {
-                    navController.navigate(Rutas.LOGIN) {
-                        popUpTo(navController.graph.id) { inclusive = true }
+                onNuevaReceta = {
+                    if (authRepository.haySesion()) {
+                        navController.navigate(Rutas.formulario())
+                    } else {
+                        navController.navigate(Rutas.LOGIN)
                     }
                 },
+                onVerDetalle = { id -> navController.navigate(Rutas.detalle(id)) },
+                onIrAMisRecetas = { navController.navigate(Rutas.HOME) },
+                onIniciarSesion = { navController.navigate(Rutas.LOGIN) },
+                onSesionCerrada = { navController.irABienvenidaLimpiandoPila() },
             )
+        }
+
+        // Mis recetas: exclusivo para usuarios autenticados
+        composable(Rutas.HOME) { entry ->
+            if (!authRepository.haySesion()) {
+                LaunchedEffect(Unit) {
+                    navController.irABienvenidaLimpiandoPila()
+                }
+            } else {
+                val mensajeNav by entry.mensajeNavegacion()
+                HomeScreen(
+                    viewModel = hiltViewModel<HomeViewModel>(),
+                    modo = ModoHome.MIS_RECETAS,
+                    mensajeNav = mensajeNav,
+                    onMensajeNavMostrado = { entry.savedStateHandle.set<String>(Rutas.MENSAJE_NAV, null) },
+                    onNuevaReceta = { navController.navigate(Rutas.formulario()) },
+                    onVerDetalle = { id -> navController.navigate(Rutas.detalle(id)) },
+                    onIrAExplorar = { navController.navigate(Rutas.EXPLORAR) },
+                    onIniciarSesion = { navController.navigate(Rutas.LOGIN) },
+                    onSesionCerrada = { navController.irABienvenidaLimpiandoPila() },
+                )
+            }
         }
 
         composable(
@@ -72,11 +114,18 @@ fun AppNavHost(
                 mensajeNav = mensajeNav,
                 onMensajeNavMostrado = { entry.savedStateHandle.set<String>(Rutas.MENSAJE_NAV, null) },
                 onVolver = { navController.popBackStack() },
-                onEditar = { id -> navController.navigate(Rutas.formulario(id)) },
+                onEditar = { id ->
+                    if (authRepository.haySesion()) {
+                        navController.navigate(Rutas.formulario(id))
+                    } else {
+                        navController.navigate(Rutas.LOGIN)
+                    }
+                },
                 onEliminada = { navController.volverConMensaje("Receta eliminada") },
             )
         }
 
+        // Ruta protegida: crear y editar recetas
         composable(
             route = Rutas.FORMULARIO,
             arguments = listOf(
@@ -87,16 +136,24 @@ fun AppNavHost(
                 },
             ),
         ) {
-            FormScreen(
-                viewModel = hiltViewModel<FormViewModel>(),
-                onVolver = { navController.popBackStack() },
-                onGuardado = { mensaje -> navController.volverConMensaje(mensaje) },
-            )
+            if (!authRepository.haySesion()) {
+                LaunchedEffect(Unit) {
+                    navController.navigate(Rutas.LOGIN) {
+                        popUpTo(Rutas.FORMULARIO) { inclusive = true }
+                    }
+                }
+            } else {
+                FormScreen(
+                    viewModel = hiltViewModel<FormViewModel>(),
+                    onVolver = { navController.popBackStack() },
+                    onGuardado = { mensaje -> navController.volverConMensaje(mensaje) },
+                )
+            }
         }
     }
 }
 
-/** Mensaje pendiente que otra pantalla dejó para esta entrada de navegación. */
+/** Mensaje pendiente que otra pantalla dejÃ³ para esta entrada de navegaciÃ³n. */
 @Composable
 private fun NavBackStackEntry.mensajeNavegacion() =
     savedStateHandle.getStateFlow<String?>(Rutas.MENSAJE_NAV, null).collectAsStateWithLifecycle()
@@ -107,7 +164,13 @@ private fun NavHostController.irAHomeLimpiandoPila() {
     }
 }
 
-/** Regresa a la pantalla anterior dejándole un mensaje para mostrar en un Snackbar. */
+private fun NavHostController.irABienvenidaLimpiandoPila() {
+    navigate(Rutas.BIENVENIDA) {
+        popUpTo(graph.id) { inclusive = true }
+    }
+}
+
+/** Regresa a la pantalla anterior dejÃ¡ndole un mensaje para mostrar en un Snackbar. */
 private fun NavHostController.volverConMensaje(mensaje: String) {
     previousBackStackEntry?.savedStateHandle?.set(Rutas.MENSAJE_NAV, mensaje)
     popBackStack()

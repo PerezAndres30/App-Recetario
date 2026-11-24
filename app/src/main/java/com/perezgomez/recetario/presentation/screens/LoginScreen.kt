@@ -1,5 +1,6 @@
 package com.perezgomez.recetario.presentation.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +42,7 @@ fun LoginScreen(
     viewModel: LoginViewModel,
     onAutenticado: () -> Unit,
     onIrARegistro: () -> Unit,
+    onContinuarComoVisitante: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -53,6 +56,7 @@ fun LoginScreen(
         onPasswordChange = viewModel::onPasswordChange,
         onIniciarSesion = viewModel::onIniciarSesion,
         onIrARegistro = onIrARegistro,
+        onContinuarComoVisitante = onContinuarComoVisitante,
     )
 }
 
@@ -63,6 +67,7 @@ fun LoginContent(
     onPasswordChange: (String) -> Unit,
     onIniciarSesion: () -> Unit,
     onIrARegistro: () -> Unit,
+    onContinuarComoVisitante: () -> Unit = {},
 ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -175,6 +180,22 @@ fun LoginContent(
                             text = "¿No tienes cuenta? Regístrate",
                             color = MaterialTheme.colorScheme.primary,
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = onContinuarComoVisitante,
+                        enabled = !state.cargando,
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = "Explorar como visitante",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

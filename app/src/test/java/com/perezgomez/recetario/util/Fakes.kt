@@ -1,15 +1,13 @@
-﻿package com.perezgomez.recetario.util
+package com.perezgomez.recetario.util
 
 import com.perezgomez.recetario.domain.model.Receta
 import com.perezgomez.recetario.domain.model.Usuario
 import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.domain.repository.RecetaRepository
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-
+import com.perezgomez.recetario.domain.session.SessionStorage
 class FakeRecetaRepository : RecetaRepository {
     val recetas = mutableListOf<Receta>()
+    val recetasPropias = mutableSetOf<String>()
     var deberiaFallar: Boolean = false
     var mensajeError: String = "Error simulado en repositorio"
 
@@ -17,6 +15,12 @@ class FakeRecetaRepository : RecetaRepository {
     var llamadasCrear: Int = 0
     var llamadasActualizar: Int = 0
     var llamadasEliminar: Int = 0
+
+    override fun esPropietario(recetaId: String): Boolean = recetasPropias.contains(recetaId)
+
+    override fun registrarRecetaPropia(recetaId: String) {
+        if (recetaId.isNotBlank()) recetasPropias.add(recetaId)
+    }
 
     override suspend fun listar(): Result<List<Receta>> {
         llamadasListar++
@@ -40,6 +44,7 @@ class FakeRecetaRepository : RecetaRepository {
         } else {
             val creada = receta.copy(id = if (receta.id.isBlank()) "id-${recetas.size + 1}" else receta.id)
             recetas.add(creada)
+            registrarRecetaPropia(creada.id)
             Result.success(creada)
         }
     }
@@ -61,6 +66,7 @@ class FakeRecetaRepository : RecetaRepository {
             Result.failure(Exception(mensajeError))
         } else {
             recetas.removeAll { it.id == id }
+            recetasPropias.remove(id)
             Result.success(Unit)
         }
     }
@@ -76,4 +82,20 @@ class FakeAuthRepository(
     override suspend fun registrar(nombre: String, correo: String, password: String): Result<Usuario> =
         Result.success(Usuario("user-1", nombre, correo))
     override fun cerrarSesion() { usuario = null }
+}
+
+class FakeSessionStorage(
+    private var tokenActual: String? = "token-test-123",
+    private var usuarioActual: Usuario? = Usuario("user-1", "Chef Ivan", "ivan@test.com"),
+) : SessionStorage {
+    override fun guardarSesion(token: String, usuario: Usuario) {
+        tokenActual = token
+        usuarioActual = usuario
+    }
+    override fun token(): String? = tokenActual
+    override fun usuario(): Usuario? = usuarioActual
+    override fun limpiar() {
+        tokenActual = null
+        usuarioActual = null
+    }
 }

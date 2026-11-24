@@ -7,6 +7,7 @@ import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.domain.repository.RecetaRepository
 import com.perezgomez.recetario.presentation.screens.HomeUiState
 import com.perezgomez.recetario.presentation.screens.ListaUi
+import com.perezgomez.recetario.presentation.screens.ModoHome
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,26 +23,51 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        HomeUiState(nombreUsuario = authRepository.usuarioActual()?.nombre.orEmpty()),
+        HomeUiState(
+            estaAutenticado = authRepository.haySesion(),
+            nombreUsuario = authRepository.usuarioActual()?.nombre.orEmpty(),
+            modo = if (authRepository.haySesion()) ModoHome.MIS_RECETAS else ModoHome.EXPLORAR,
+        ),
     )
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    fun configurarModo(modo: ModoHome) {
+        val autenticado = authRepository.haySesion()
+        _uiState.update {
+            it.copy(
+                modo = modo,
+                estaAutenticado = autenticado,
+                nombreUsuario = if (autenticado) authRepository.usuarioActual()?.nombre.orEmpty() else "",
+            )
+        }
+    }
+
     /** Se llama cada vez que la pantalla vuelve a primer plano, para reflejar cambios hechos en otras pantallas. */
     fun cargar() {
+        val autenticado = authRepository.haySesion()
         val yaHayDatos = _uiState.value.lista is ListaUi.Contenido
         _uiState.update {
             it.copy(
                 lista = if (yaHayDatos) it.lista else ListaUi.Cargando,
                 actualizando = true,
+                estaAutenticado = autenticado,
+                nombreUsuario = if (autenticado) authRepository.usuarioActual()?.nombre.orEmpty() else "",
             )
         }
 
         viewModelScope.launch {
             recetaRepository.listar()
                 .onSuccess { recetas ->
-                    _uiState.update {
-                        it.copy(
-                            lista = if (recetas.isEmpty()) ListaUi.Vacia else ListaUi.Contenido(recetas),
+                    _uiState.update { estado ->
+                        val recetasFiltradas = when (estado.modo) {
+                            ModoHome.EXPLORAR -> recetas
+                            ModoHome.MIS_RECETAS -> {
+                                // Solo presenta recetas cuya propiedad esté verificada; no usurpa la lista comunitaria
+                                recetas.filter { recetaRepository.esPropietario(it.id) }
+                            }
+                        }
+                        estado.copy(
+                            lista = if (recetasFiltradas.isEmpty()) ListaUi.Vacia else ListaUi.Contenido(recetasFiltradas),
                             actualizando = false,
                         )
                     }
@@ -59,12 +85,20 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun onEliminarClick(receta: Receta) = _uiState.update { it.copy(recetaAEliminar = receta) }
+    fun onEliminarClick(receta: Receta) {
+        // Solo permite solicitar eliminación si es una receta con propiedad verificada
+        if (!authRepository.haySesion() || !recetaRepository.esPropietario(receta.id)) return
+        _uiState.update { it.copy(recetaAEliminar = receta) }
+    }
 
     fun onCancelarEliminar() = _uiState.update { it.copy(recetaAEliminar = null) }
 
     fun onConfirmarEliminar() {
         val receta = _uiState.value.recetaAEliminar ?: return
+        if (!authRepository.haySesion() || !recetaRepository.esPropietario(receta.id)) {
+            _uiState.update { it.copy(recetaAEliminar = null) }
+            return
+        }
         if (_uiState.value.eliminando) return
 
         _uiState.update { it.copy(eliminando = true) }
@@ -95,6 +129,13 @@ class HomeViewModel @Inject constructor(
 
     fun onCerrarSesion() {
         authRepository.cerrarSesion()
-        _uiState.update { it.copy(sesionCerrada = true) }
+        _uiState.update {
+            it.copy(
+                sesionCerrada = true,
+                estaAutenticado = false,
+                nombreUsuario = "",
+                modo = ModoHome.EXPLORAR,
+            )
+        }
     }
 }

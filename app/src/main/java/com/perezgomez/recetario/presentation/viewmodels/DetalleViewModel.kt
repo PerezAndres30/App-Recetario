@@ -3,6 +3,7 @@ package com.perezgomez.recetario.presentation.viewmodels
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.domain.repository.RecetaRepository
 import com.perezgomez.recetario.presentation.navigation.Rutas
 import com.perezgomez.recetario.presentation.screens.DetalleContenido
@@ -18,17 +19,23 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class DetalleViewModel @Inject constructor(
     private val recetaRepository: RecetaRepository,
+    private val authRepository: AuthRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val recetaId: String = checkNotNull(savedStateHandle.get<String>(Rutas.ARG_ID))
 
-    private val _uiState = MutableStateFlow(DetalleUiState())
+    private val _uiState = MutableStateFlow(
+        DetalleUiState(
+            esPropietarioVerificado = authRepository.haySesion() && recetaRepository.esPropietario(recetaId),
+        ),
+    )
     val uiState: StateFlow<DetalleUiState> = _uiState.asStateFlow()
 
-    /** Se llama al volver a primer plano, así se refleja una edición recién guardada. */
     fun cargar() {
         val yaHayDatos = _uiState.value.contenido is DetalleContenido.Listo
+        val esPropia = authRepository.haySesion() && recetaRepository.esPropietario(recetaId)
+        _uiState.update { it.copy(esPropietarioVerificado = esPropia) }
         if (!yaHayDatos) _uiState.update { it.copy(contenido = DetalleContenido.Cargando) }
 
         viewModelScope.launch {
@@ -45,12 +52,15 @@ class DetalleViewModel @Inject constructor(
         }
     }
 
-    fun onEliminarClick() = _uiState.update { it.copy(confirmandoEliminar = true) }
+    fun onEliminarClick() {
+        if (!_uiState.value.esPropietarioVerificado) return
+        _uiState.update { it.copy(confirmandoEliminar = true) }
+    }
 
     fun onCancelarEliminar() = _uiState.update { it.copy(confirmandoEliminar = false) }
 
     fun onConfirmarEliminar() {
-        if (_uiState.value.eliminando) return
+        if (!_uiState.value.esPropietarioVerificado || _uiState.value.eliminando) return
         _uiState.update { it.copy(eliminando = true) }
         viewModelScope.launch {
             recetaRepository.eliminar(recetaId)

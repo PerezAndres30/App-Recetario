@@ -18,10 +18,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
@@ -40,6 +43,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -62,14 +66,22 @@ import com.perezgomez.recetario.presentation.viewmodels.HomeViewModel
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    modo: ModoHome,
     mensajeNav: String?,
     onMensajeNavMostrado: () -> Unit,
     onNuevaReceta: () -> Unit,
     onVerDetalle: (String) -> Unit,
-    onSesionCerrada: () -> Unit,
+    onIrAExplorar: () -> Unit = {},
+    onIrAMisRecetas: () -> Unit = {},
+    onIniciarSesion: () -> Unit = {},
+    onSesionCerrada: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(modo) {
+        viewModel.configurarModo(modo)
+    }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.cargar() }
 
@@ -80,7 +92,6 @@ fun HomeScreen(
         }
     }
 
-    // Mensaje que dejó otra pantalla al volver ("Receta creada", "Receta eliminada"...).
     LaunchedEffect(mensajeNav) {
         mensajeNav?.let {
             snackbarHostState.showSnackbar(it)
@@ -100,6 +111,9 @@ fun HomeScreen(
         onEliminarClick = viewModel::onEliminarClick,
         onReintentar = viewModel::cargar,
         onActualizar = viewModel::cargar,
+        onIrAExplorar = onIrAExplorar,
+        onIrAMisRecetas = onIrAMisRecetas,
+        onIniciarSesion = onIniciarSesion,
         onCerrarSesion = viewModel::onCerrarSesion,
     )
 
@@ -123,8 +137,13 @@ fun HomeContent(
     onEliminarClick: (Receta) -> Unit,
     onReintentar: () -> Unit,
     onActualizar: () -> Unit,
+    onIrAExplorar: () -> Unit,
+    onIrAMisRecetas: () -> Unit,
+    onIniciarSesion: () -> Unit,
     onCerrarSesion: () -> Unit,
 ) {
+    val esExplorar = state.modo == ModoHome.EXPLORAR
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -135,11 +154,17 @@ fun HomeContent(
                 title = {
                     Column {
                         Text(
-                            text = "Mis recetas",
+                            text = if (esExplorar) "Explorar recetas" else "Mis recetas",
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.primary,
                         )
-                        if (state.nombreUsuario.isNotBlank()) {
+                        if (esExplorar) {
+                            Text(
+                                text = "Catálogo público",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else if (state.nombreUsuario.isNotBlank()) {
                             Text(
                                 text = "Hola, ${state.nombreUsuario}",
                                 style = MaterialTheme.typography.labelMedium,
@@ -159,25 +184,99 @@ fun HomeContent(
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     }
-                    IconButton(onClick = onCerrarSesion) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = "Cerrar sesión",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+
+                    if (esExplorar) {
+                        if (state.estaAutenticado) {
+                            // Usuario autenticado en Explorar -> Acceso directo a Mis recetas
+                            TextButton(
+                                onClick = onIrAMisRecetas,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Mis recetas",
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                            IconButton(onClick = onCerrarSesion) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Logout,
+                                    contentDescription = "Cerrar sesión",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        } else {
+                            // Visitante en Explorar -> Iniciar sesión
+                            TextButton(
+                                onClick = onIniciarSesion,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary,
+                                ),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Login,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Iniciar sesión",
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        }
+                    } else {
+                        // Usuario en Mis recetas -> Navegar a Explorar catálogo público
+                        TextButton(
+                            onClick = onIrAExplorar,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Explore,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Explorar",
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        IconButton(onClick = onCerrarSesion) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                contentDescription = "Cerrar sesión",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNuevaReceta,
-                shape = RoundedCornerShape(20.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Nueva receta")
+            // Solo se permite crear recetas desde la sección de Mis recetas
+            if (!esExplorar && state.estaAutenticado) {
+                FloatingActionButton(
+                    onClick = onNuevaReceta,
+                    shape = RoundedCornerShape(20.dp),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Nueva receta")
+                }
             }
         },
     ) { padding ->
@@ -209,7 +308,7 @@ fun HomeContent(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Actualizando tus recetas…",
+                            text = if (esExplorar) "Actualizando catálogo…" else "Actualizando tus recetas…",
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
@@ -233,7 +332,7 @@ fun HomeContent(
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Actualizando tus recetas…",
+                            text = if (esExplorar) "Cargando catálogo público…" else "Cargando tus recetas…",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -261,38 +360,44 @@ fun HomeContent(
                         }
                         Spacer(modifier = Modifier.height(20.dp))
                         Text(
-                            text = "Aún no tienes recetas",
+                            text = if (esExplorar) "No hay recetas disponibles" else "Aún no tienes recetas propias",
                             style = MaterialTheme.typography.headlineSmall,
                             color = MaterialTheme.colorScheme.onBackground,
                             textAlign = TextAlign.Center,
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Crea tu primera receta para verla aquí.",
+                            text = if (esExplorar) {
+                                "Vuelve a consultar más tarde para descubrir nuevas recetas."
+                            } else {
+                                "Las recetas del catálogo pertenecen a la comunidad. Crea tu primera receta con el botón + para gestionarla aquí."
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Button(
-                            onClick = onNuevaReceta,
-                            shape = RoundedCornerShape(24.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                            ),
-                            modifier = Modifier.height(48.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Nueva receta",
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                            )
+                        if (!esExplorar && state.estaAutenticado) {
+                            Spacer(modifier = Modifier.height(20.dp))
+                            Button(
+                                onClick = onNuevaReceta,
+                                shape = RoundedCornerShape(24.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                                ),
+                                modifier = Modifier.height(48.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Nueva receta",
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                                )
+                            }
                         }
                     }
                     is ListaUi.Error -> PantallaError(
@@ -306,6 +411,7 @@ fun HomeContent(
                         items(lista.recetas, key = { it.id }) { receta ->
                             RecetaItem(
                                 receta = receta,
+                                puedeEliminar = !esExplorar && state.estaAutenticado,
                                 onClick = { onVerDetalle(receta.id) },
                                 onEliminar = { onEliminarClick(receta) },
                             )
@@ -318,7 +424,12 @@ fun HomeContent(
 }
 
 @Composable
-private fun RecetaItem(receta: Receta, onClick: () -> Unit, onEliminar: () -> Unit) {
+private fun RecetaItem(
+    receta: Receta,
+    puedeEliminar: Boolean,
+    onClick: () -> Unit,
+    onEliminar: () -> Unit,
+) {
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
@@ -419,16 +530,19 @@ private fun RecetaItem(receta: Receta, onClick: () -> Unit, onEliminar: () -> Un
                 Spacer(modifier = Modifier.width(4.dp))
             }
 
-            IconButton(
-                onClick = onEliminar,
-                modifier = Modifier.size(36.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Eliminar receta",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.size(20.dp),
-                )
+            // Acción de eliminar solo disponible para recetas verificadas en Mis recetas
+            if (puedeEliminar) {
+                IconButton(
+                    onClick = onEliminar,
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Eliminar receta",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
     }

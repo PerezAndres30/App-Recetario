@@ -21,12 +21,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Con sesión guardada se salta el login y se abre Home directamente.
-        val inicio = if (authRepository.haySesion()) Rutas.HOME else Rutas.LOGIN
+        // Si hay sesión guardada se abre Home ("Mis recetas") directamente.
+        // Si no hay sesión, se muestra la pantalla de bienvenida (Figma Frame 18).
+        val inicio = if (authRepository.haySesion()) Rutas.HOME else Rutas.BIENVENIDA
 
         setContent {
             RecetarioTheme {
-                AppNavHost(startDestination = inicio)
+                AppNavHost(
+                    startDestination = inicio,
+                    authRepository = authRepository,
+                )
             }
         }
     }
