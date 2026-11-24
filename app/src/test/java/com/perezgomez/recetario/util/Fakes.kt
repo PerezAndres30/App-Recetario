@@ -5,6 +5,16 @@ import com.perezgomez.recetario.domain.model.Usuario
 import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.domain.repository.RecetaRepository
 import com.perezgomez.recetario.domain.session.SessionStorage
+import com.perezgomez.recetario.domain.tts.EstadoLectura
+import com.perezgomez.recetario.domain.tts.EtapaLectura
+import com.perezgomez.recetario.domain.tts.RecetaTtsService
+import com.perezgomez.recetario.domain.tts.TtsEngine
+import com.perezgomez.recetario.domain.tts.TtsEventListener
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+
 class FakeRecetaRepository : RecetaRepository {
     val recetas = mutableListOf<Receta>()
     val recetasPropias = mutableSetOf<String>()
@@ -97,5 +107,106 @@ class FakeSessionStorage(
     override fun limpiar() {
         tokenActual = null
         usuarioActual = null
+    }
+}
+
+class FakeTtsEngine : TtsEngine {
+    private var eventListener: TtsEventListener? = null
+    val textosHablados = mutableListOf<String>()
+    val utteranceIds = mutableListOf<String>()
+    var llamadasDetener = 0
+    var llamadasLiberar = 0
+    var estaHablando = false
+
+    override fun setListener(listener: TtsEventListener?) {
+        this.eventListener = listener
+    }
+
+    override fun hablar(texto: String, utteranceId: String) {
+        textosHablados.add(texto)
+        utteranceIds.add(utteranceId)
+        estaHablando = true
+        eventListener?.onInicio()
+    }
+
+    override fun detener() {
+        llamadasDetener++
+        estaHablando = false
+        eventListener?.onFin()
+    }
+
+    override fun liberar() {
+        llamadasLiberar++
+        estaHablando = false
+        eventListener = null
+    }
+
+    fun simularFinLocucion() {
+        estaHablando = false
+        eventListener?.onFin()
+    }
+
+    fun simularError(mensaje: String = "Error simulado en TTS") {
+        estaHablando = false
+        eventListener?.onError(mensaje)
+    }
+}
+
+class FakeRecetaTtsService : RecetaTtsService {
+    private val _estado = MutableStateFlow(EstadoLectura())
+    override val estado: StateFlow<EstadoLectura> = _estado.asStateFlow()
+
+    var recetaReproducida: Receta? = null
+    var llamadasContinuar = 0
+    var llamadasRepetir = 0
+    var llamadasDetener = 0
+    var llamadasLiberar = 0
+
+    override fun reproducir(receta: Receta) {
+        recetaReproducida = receta
+        _estado.value = EstadoLectura(
+            etapa = EtapaLectura.INTRODUCCION,
+            pasoActual = 0,
+            totalPasos = receta.pasos.size,
+            estaReproduciendo = true,
+            textoActual = "Intro: ${receta.titulo}",
+        )
+    }
+
+    override fun continuar() {
+        llamadasContinuar++
+        val actual = _estado.value
+        if (actual.etapa == EtapaLectura.INTRODUCCION) {
+            if (actual.totalPasos > 0) {
+                _estado.value = actual.copy(etapa = EtapaLectura.PASO, pasoActual = 1)
+            } else {
+                _estado.value = actual.copy(etapa = EtapaLectura.FINALIZADO)
+            }
+        } else if (actual.etapa == EtapaLectura.PASO) {
+            if (actual.pasoActual < actual.totalPasos) {
+                _estado.value = actual.copy(pasoActual = actual.pasoActual + 1)
+            } else {
+                _estado.value = actual.copy(etapa = EtapaLectura.FINALIZADO)
+            }
+        }
+    }
+
+    override fun repetir() {
+        llamadasRepetir++
+    }
+
+    override fun detener() {
+        llamadasDetener++
+        _estado.update { it.copy(estaReproduciendo = false) }
+    }
+
+    override fun liberar() {
+        llamadasLiberar++
+        recetaReproducida = null
+        _estado.value = EstadoLectura()
+    }
+
+    fun emitirEstado(nuevoEstado: EstadoLectura) {
+        _estado.value = nuevoEstado
     }
 }
