@@ -59,6 +59,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.perezgomez.recetario.domain.model.Receta
+import com.perezgomez.recetario.presentation.components.ImagenReceta
 import com.perezgomez.recetario.presentation.components.ConfirmarEliminarDialog
 import com.perezgomez.recetario.presentation.components.PantallaError
 import com.perezgomez.recetario.presentation.viewmodels.HomeViewModel
@@ -411,7 +412,7 @@ fun HomeContent(
                         items(lista.recetas, key = { it.id }) { receta ->
                             RecetaItem(
                                 receta = receta,
-                                puedeEliminar = !esExplorar && state.estaAutenticado,
+                                puedeEliminar = receta.esPropia && state.estaAutenticado,
                                 onClick = { onVerDetalle(receta.id) },
                                 onEliminar = { onEliminarClick(receta) },
                             )
@@ -444,21 +445,12 @@ private fun RecetaItem(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Icono ilustrativo de la receta en contenedor suave
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = if (receta.favorita) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(46.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Restaurant,
-                        contentDescription = null,
-                        tint = if (receta.favorita) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
+            // Miniatura: la foto de la receta, o un ícono si no tiene
+            ImagenReceta(
+                origen = receta.imagenUrl,
+                descripcion = "Foto de ${receta.titulo}",
+                modifier = Modifier.size(56.dp),
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 

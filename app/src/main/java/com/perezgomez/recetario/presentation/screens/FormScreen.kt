@@ -1,6 +1,17 @@
 package com.perezgomez.recetario.presentation.screens
 
 import androidx.compose.foundation.BorderStroke
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import java.io.File
+import java.util.UUID
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.perezgomez.recetario.domain.model.Categorias
 import com.perezgomez.recetario.presentation.components.CampoTexto
 import com.perezgomez.recetario.presentation.components.PantallaCargando
+import com.perezgomez.recetario.presentation.components.SeccionFoto
 import com.perezgomez.recetario.presentation.viewmodels.FormViewModel
 
 @Composable
@@ -65,6 +77,19 @@ fun FormScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    // Cámara: escribe en un archivo de la caché de la app (vía FileProvider); no pide permiso de cámara.
+    var uriCamara by rememberSaveable { mutableStateOf<String?>(null) }
+    val camara = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { tomada ->
+        val uri = uriCamara
+        uriCamara = null
+        if (tomada && uri != null) viewModel.onFotoElegida(uri)
+    }
+    // Galería: selector de fotos del sistema; tampoco requiere permisos.
+    val galeria = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) viewModel.onFotoElegida(uri.toString())
+    }
 
     LaunchedEffect(state.guardado) {
         if (state.guardado) onGuardado(state.mensajeExito)
@@ -87,6 +112,26 @@ fun FormScreen(
         onAgregarPaso = viewModel::onAgregarPaso,
         onQuitarPaso = viewModel::onQuitarPaso,
         onGuardar = viewModel::onGuardar,
+        onTomarFoto = {
+            try {
+                val carpeta = File(context.cacheDir, "fotos").apply { mkdirs() }
+                val archivo = File(carpeta, "camara-${UUID.randomUUID()}.jpg")
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", archivo)
+                uriCamara = uri.toString()
+                camara.launch(uri)
+            } catch (e: Exception) {
+                uriCamara = null
+                viewModel.onFotoError("No se pudo abrir la cámara en este dispositivo.")
+            }
+        },
+        onElegirDeGaleria = {
+            try {
+                galeria.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            } catch (e: Exception) {
+                viewModel.onFotoError("No se pudo abrir la galería en este dispositivo.")
+            }
+        },
+        onQuitarFoto = viewModel::onQuitarFoto,
     )
 }
 
@@ -109,6 +154,9 @@ fun FormContent(
     onAgregarPaso: () -> Unit,
     onQuitarPaso: (Int) -> Unit,
     onGuardar: () -> Unit,
+    onTomarFoto: () -> Unit = {},
+    onElegirDeGaleria: () -> Unit = {},
+    onQuitarFoto: () -> Unit = {},
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -139,7 +187,7 @@ fun FormContent(
         }
 
         val errores = state.errores
-        val habilitado = !state.guardando
+        val habilitado = !state.guardando && !state.procesandoImagen
 
         Column(
             modifier = Modifier
@@ -150,6 +198,16 @@ fun FormContent(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            // ================= FOTO =================
+            SeccionFoto(
+                vistaPrevia = state.vistaPreviaImagen,
+                procesando = state.procesandoImagen,
+                habilitado = habilitado,
+                onTomarFoto = onTomarFoto,
+                onElegirDeGaleria = onElegirDeGaleria,
+                onQuitarFoto = onQuitarFoto,
+            )
+
             // ================= 01 INFORMACIÓN GENERAL =================
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(

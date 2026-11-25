@@ -66,6 +66,10 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
 
+    // Fotos: carga de imágenes y lectura de rotación EXIF
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.exifinterface)
+
     // Hilt
     implementation(libs.hilt.android)
     implementation(libs.androidx.hilt.navigation.compose)

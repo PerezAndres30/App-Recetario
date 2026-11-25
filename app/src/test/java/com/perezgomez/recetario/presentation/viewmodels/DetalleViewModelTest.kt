@@ -53,6 +53,7 @@ class DetalleViewModelTest {
         porciones = 2,
         ingredientes = emptyList(),
         pasos = emptyList(),
+        esPropia = true,
     )
 
     @Before
@@ -62,7 +63,6 @@ class DetalleViewModelTest {
         fakeTtsService = FakeRecetaTtsService()
         recetaRepository.recetas.add(recetaGlobal)
         recetaRepository.recetas.add(recetaPropia)
-        recetaRepository.registrarRecetaPropia(recetaPropia.id)
     }
 
     private fun crearViewModel(
@@ -78,6 +78,8 @@ class DetalleViewModelTest {
     @Test
     fun recetaPropiaVerificada_esPropietarioVerificadoTrue() {
         val viewModel = crearViewModel("receta-propia-200")
+        viewModel.cargar()
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.esPropietarioVerificado)
     }
@@ -85,6 +87,8 @@ class DetalleViewModelTest {
     @Test
     fun recetaGlobalSinVerificar_esPropietarioVerificadoFalse() {
         val viewModel = crearViewModel("receta-global-100")
+        viewModel.cargar()
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.esPropietarioVerificado)
     }
@@ -93,6 +97,8 @@ class DetalleViewModelTest {
     fun visitante_esPropietarioVerificadoFalse() {
         val authSinSesion = FakeAuthRepository(null)
         val viewModel = crearViewModel("receta-propia-200", auth = authSinSesion)
+        viewModel.cargar()
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
         assertFalse(viewModel.uiState.value.esPropietarioVerificado)
     }

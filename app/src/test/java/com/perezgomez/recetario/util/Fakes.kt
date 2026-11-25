@@ -1,8 +1,13 @@
 package com.perezgomez.recetario.util
 
+import com.perezgomez.recetario.domain.imagen.ImagenLista
+import com.perezgomez.recetario.domain.imagen.ProcesadorImagen
+import com.perezgomez.recetario.domain.model.CambioImagen
+import com.perezgomez.recetario.domain.model.ImagenSubida
 import com.perezgomez.recetario.domain.model.Receta
 import com.perezgomez.recetario.domain.model.Usuario
 import com.perezgomez.recetario.domain.repository.AuthRepository
+import com.perezgomez.recetario.domain.repository.ImagenRepository
 import com.perezgomez.recetario.domain.repository.RecetaRepository
 import com.perezgomez.recetario.domain.session.SessionStorage
 import com.perezgomez.recetario.domain.tts.EstadoLectura
@@ -17,7 +22,6 @@ import kotlinx.coroutines.flow.update
 
 class FakeRecetaRepository : RecetaRepository {
     val recetas = mutableListOf<Receta>()
-    val recetasPropias = mutableSetOf<String>()
     var deberiaFallar: Boolean = false
     var mensajeError: String = "Error simulado en repositorio"
 
@@ -26,16 +30,14 @@ class FakeRecetaRepository : RecetaRepository {
     var llamadasActualizar: Int = 0
     var llamadasEliminar: Int = 0
 
-    override fun esPropietario(recetaId: String): Boolean = recetasPropias.contains(recetaId)
+    var ultimoCambioImagen: CambioImagen? = null
+    var ultimoSoloMias: Boolean? = null
 
-    override fun registrarRecetaPropia(recetaId: String) {
-        if (recetaId.isNotBlank()) recetasPropias.add(recetaId)
-    }
-
-    override suspend fun listar(): Result<List<Receta>> {
+    override suspend fun listar(soloMias: Boolean): Result<List<Receta>> {
         llamadasListar++
+        ultimoSoloMias = soloMias
         return if (deberiaFallar) Result.failure(Exception(mensajeError))
-        else Result.success(recetas.toList())
+        else Result.success(if (soloMias) recetas.filter { it.esPropia } else recetas.toList())
     }
 
     override suspend fun obtener(id: String): Result<Receta> {
@@ -52,21 +54,34 @@ class FakeRecetaRepository : RecetaRepository {
         return if (deberiaFallar) {
             Result.failure(Exception(mensajeError))
         } else {
-            val creada = receta.copy(id = if (receta.id.isBlank()) "id-${recetas.size + 1}" else receta.id)
+            val creada = receta.copy(
+                id = if (receta.id.isBlank()) "id-${recetas.size + 1}" else receta.id,
+                esPropia = true,
+            )
             recetas.add(creada)
-            registrarRecetaPropia(creada.id)
             Result.success(creada)
         }
     }
 
-    override suspend fun actualizar(receta: Receta): Result<Receta> {
+    override suspend fun actualizar(receta: Receta, imagen: CambioImagen): Result<Receta> {
         llamadasActualizar++
+        ultimoCambioImagen = imagen
         return if (deberiaFallar) {
             Result.failure(Exception(mensajeError))
         } else {
+            val actual = recetas.find { it.id == receta.id }
+            val resultado = when (imagen) {
+                CambioImagen.Mantener -> receta.copy(
+                    esPropia = actual?.esPropia ?: receta.esPropia,
+                    imagenUrl = actual?.imagenUrl,
+                    imagenPublicId = actual?.imagenPublicId,
+                )
+                CambioImagen.Quitar -> receta.copy(imagenUrl = null, imagenPublicId = null)
+                is CambioImagen.Establecer -> receta.copy(imagenUrl = imagen.url, imagenPublicId = imagen.publicId)
+            }
             val index = recetas.indexOfFirst { it.id == receta.id }
-            if (index != -1) recetas[index] = receta
-            Result.success(receta)
+            if (index != -1) recetas[index] = resultado
+            Result.success(resultado)
         }
     }
 
@@ -76,9 +91,33 @@ class FakeRecetaRepository : RecetaRepository {
             Result.failure(Exception(mensajeError))
         } else {
             recetas.removeAll { it.id == id }
-            recetasPropias.remove(id)
             Result.success(Unit)
         }
+    }
+}
+
+class FakeImagenRepository : ImagenRepository {
+    var deberiaFallar = false
+    val subidas = mutableListOf<Pair<String, String>>()
+
+    override suspend fun subir(recetaId: String, rutaArchivo: String): Result<ImagenSubida> {
+        subidas.add(recetaId to rutaArchivo)
+        return if (deberiaFallar) Result.failure(Exception("No se pudo subir la foto"))
+        else Result.success(ImagenSubida("https://res.cloudinary.com/demo/image/upload/v1/recetario/recetas/$recetaId.jpg", "recetario/recetas/$recetaId"))
+    }
+}
+
+class FakeProcesadorImagen : ProcesadorImagen {
+    var deberiaFallar = false
+    val descartadas = mutableListOf<String>()
+    private var contador = 0
+
+    override suspend fun preparar(origen: String): Result<ImagenLista> =
+        if (deberiaFallar) Result.failure(Exception("No se pudo preparar la foto"))
+        else Result.success(ImagenLista("/cache/fotos/foto-${++contador}.jpg", 200_000))
+
+    override fun descartar(ruta: String) {
+        descartadas.add(ruta)
     }
 }
 
