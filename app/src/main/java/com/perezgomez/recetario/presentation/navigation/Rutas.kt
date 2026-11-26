@@ -1,8 +1,10 @@
 package com.perezgomez.recetario.presentation.navigation
 
 object Rutas {
+    const val BIENVENIDA = "bienvenida"
     const val LOGIN = "login"
     const val REGISTRO = "registro"
+    const val EXPLORAR = "explorar"
     const val HOME = "home"
     const val DETALLE = "detalle/{id}"
     const val FORMULARIO = "formulario?id={id}"

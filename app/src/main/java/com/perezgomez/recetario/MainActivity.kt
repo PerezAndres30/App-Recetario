@@ -4,22 +4,33 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.presentation.navigation.AppNavHost
 import com.perezgomez.recetario.presentation.navigation.Rutas
 import com.perezgomez.recetario.presentation.theme.RecetarioTheme
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val container = (application as RecetarioApp).container
-        // Con sesión guardada se salta el login y se abre Home directamente.
-        val inicio = if (container.authRepository.haySesion()) Rutas.HOME else Rutas.LOGIN
+        // Si hay sesión guardada se abre Home ("Mis recetas") directamente.
+        // Si no hay sesión, se muestra la pantalla de bienvenida (Figma Frame 18).
+        val inicio = if (authRepository.haySesion()) Rutas.HOME else Rutas.BIENVENIDA
 
         setContent {
             RecetarioTheme {
-                AppNavHost(container = container, startDestination = inicio)
+                AppNavHost(
+                    startDestination = inicio,
+                    authRepository = authRepository,
+                )
             }
         }
     }

@@ -5,12 +5,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.perezgomez.recetario.domain.model.Ingrediente
 import com.perezgomez.recetario.domain.model.Receta
+import com.perezgomez.recetario.domain.repository.AuthRepository
 import com.perezgomez.recetario.domain.repository.RecetaRepository
 import com.perezgomez.recetario.domain.validation.Validadores
 import com.perezgomez.recetario.presentation.navigation.Rutas
 import com.perezgomez.recetario.presentation.screens.FormErrores
 import com.perezgomez.recetario.presentation.screens.FormUiState
 import com.perezgomez.recetario.presentation.screens.IngredienteForm
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,8 +21,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Un solo ViewModel para crear y editar: si llega un id por navegación, precarga la receta. */
-class FormViewModel(
+@HiltViewModel
+class FormViewModel @Inject constructor(
     private val recetaRepository: RecetaRepository,
+    private val authRepository: AuthRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -120,6 +125,11 @@ class FormViewModel(
     fun onGuardar() {
         val actual = _uiState.value
         if (actual.guardando || actual.cargando) return
+
+        if (!authRepository.haySesion()) {
+            _uiState.update { it.copy(error = "Debes iniciar sesión para crear o editar recetas.") }
+            return
+        }
 
         val errores = validar(actual)
         if (errores.hayErrores()) {
