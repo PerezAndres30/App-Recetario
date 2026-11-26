@@ -56,18 +56,13 @@ class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            recetaRepository.listar()
+            // "Mis recetas" la filtra la API con el token; el catálogo es público.
+            val soloMias = _uiState.value.modo == ModoHome.MIS_RECETAS && autenticado
+            recetaRepository.listar(soloMias)
                 .onSuccess { recetas ->
                     _uiState.update { estado ->
-                        val recetasFiltradas = when (estado.modo) {
-                            ModoHome.EXPLORAR -> recetas
-                            ModoHome.MIS_RECETAS -> {
-                                // Solo presenta recetas cuya propiedad esté verificada; no usurpa la lista comunitaria
-                                recetas.filter { recetaRepository.esPropietario(it.id) }
-                            }
-                        }
                         estado.copy(
-                            lista = if (recetasFiltradas.isEmpty()) ListaUi.Vacia else ListaUi.Contenido(recetasFiltradas),
+                            lista = if (recetas.isEmpty()) ListaUi.Vacia else ListaUi.Contenido(recetas),
                             actualizando = false,
                         )
                     }
@@ -86,8 +81,8 @@ class HomeViewModel @Inject constructor(
     }
 
     fun onEliminarClick(receta: Receta) {
-        // Solo permite solicitar eliminación si es una receta con propiedad verificada
-        if (!authRepository.haySesion() || !recetaRepository.esPropietario(receta.id)) return
+        // Solo el creador puede eliminar (la API lo marca con esPropia y además lo exige con 403)
+        if (!authRepository.haySesion() || !receta.esPropia) return
         _uiState.update { it.copy(recetaAEliminar = receta) }
     }
 
@@ -95,7 +90,7 @@ class HomeViewModel @Inject constructor(
 
     fun onConfirmarEliminar() {
         val receta = _uiState.value.recetaAEliminar ?: return
-        if (!authRepository.haySesion() || !recetaRepository.esPropietario(receta.id)) {
+        if (!authRepository.haySesion() || !receta.esPropia) {
             _uiState.update { it.copy(recetaAEliminar = null) }
             return
         }

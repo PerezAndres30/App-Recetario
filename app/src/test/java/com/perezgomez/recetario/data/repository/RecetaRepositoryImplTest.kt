@@ -1,16 +1,21 @@
 package com.perezgomez.recetario.data.repository
 
 import com.perezgomez.recetario.data.datasource.RecetaApiService
+import com.perezgomez.recetario.data.dto.FirmaImagenDto
 import com.perezgomez.recetario.data.dto.RecetaDto
 import com.perezgomez.recetario.data.dto.RecetaRequestDto
 import com.perezgomez.recetario.data.dto.RecetasResponseDto
+import com.perezgomez.recetario.data.mapper.toRequestDto
 import com.perezgomez.recetario.data.remote.ApiCaller
-import com.perezgomez.recetario.domain.model.Ingrediente
+import com.perezgomez.recetario.domain.model.CambioImagen
 import com.perezgomez.recetario.domain.model.Receta
-import com.perezgomez.recetario.domain.model.Usuario
-import com.perezgomez.recetario.util.FakeSessionStorage
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -18,136 +23,136 @@ import org.junit.Test
 
 class RecetaRepositoryImplTest {
 
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private lateinit var fakeApi: FakeRecetaApiService
-    private lateinit var sessionStorage: FakeSessionStorage
-    private lateinit var apiCaller: ApiCaller
     private lateinit var repository: RecetaRepositoryImpl
 
-    private val usuarioA = Usuario("user-A", "Alice", "alice@test.com")
-    private val usuarioB = Usuario("user-B", "Bob", "bob@test.com")
+    private val receta = Receta(
+        id = "receta-1",
+        titulo = "Sopa",
+        categoria = "comida",
+        tiempoMinutos = 10,
+        porciones = 2,
+        ingredientes = emptyList(),
+        pasos = listOf("Hervir"),
+    )
 
     @Before
     fun setUp() {
         fakeApi = FakeRecetaApiService()
-        sessionStorage = FakeSessionStorage(usuarioActual = usuarioA)
-        apiCaller = ApiCaller(Json { ignoreUnknownKeys = true })
-        repository = RecetaRepositoryImpl(fakeApi, apiCaller, sessionStorage)
+        repository = RecetaRepositoryImpl(fakeApi, ApiCaller(json))
+    }
+
+    private fun dto(id: String, esPropia: Boolean, imagenUrl: String? = null) = RecetaDto(
+        recetaId = id,
+        titulo = "R $id",
+        esPropia = esPropia,
+        imagenUrl = imagenUrl,
+    )
+
+    @Test
+    fun listar_publico_noPideSoloMias() = runTest {
+        fakeApi.recetas += dto("a", esPropia = false)
+        repository.listar(soloMias = false)
+
+        assertEquals(null, fakeApi.ultimoMias)
     }
 
     @Test
-    fun esPropietario_sinSesionActiva_retornaFalse() {
-        sessionStorage.limpiar()
+    fun listar_soloMias_pideMiasTrueYConservaEsPropiaDeLaApi() = runTest {
+        fakeApi.recetas += dto("a", esPropia = true)
+        fakeApi.recetas += dto("b", esPropia = false)
 
-        assertFalse(repository.esPropietario("receta-1"))
+        val resultado = repository.listar(soloMias = true).getOrThrow()
+
+        assertEquals(true, fakeApi.ultimoMias)
+        assertEquals(listOf("a"), resultado.map { it.id })
+        assertTrue(resultado[0].esPropia)
     }
 
     @Test
-    fun registrarRecetaPropia_usuarioA_noOtorgaPropiedadAUsuarioB() {
-        // 1. Usuario A registra autoría de una receta
-        sessionStorage.guardarSesion("token-A", usuarioA)
-        repository.registrarRecetaPropia("receta-privada-A")
-        assertTrue(repository.esPropietario("receta-privada-A"))
+    fun obtener_mapeaImagenYPropiedad() = runTest {
+        fakeApi.recetas += dto("a", esPropia = true, imagenUrl = "https://res.cloudinary.com/x/image/upload/recetario/recetas/a.jpg")
 
-        // 2. Usuario A cierra sesión -> sin sesión no es propietario
-        sessionStorage.limpiar()
-        assertFalse(repository.esPropietario("receta-privada-A"))
+        val r = repository.obtener("a").getOrThrow()
 
-        // 3. Usuario B inicia sesión en la misma app -> no hereda propiedad de Usuario A
-        sessionStorage.guardarSesion("token-B", usuarioB)
-        assertFalse(repository.esPropietario("receta-privada-A"))
-
-        // 4. Usuario A vuelve a iniciar sesión -> recupera su propiedad
-        sessionStorage.guardarSesion("token-A", usuarioA)
-        assertTrue(repository.esPropietario("receta-privada-A"))
+        assertTrue(r.esPropia)
+        assertEquals("https://res.cloudinary.com/x/image/upload/recetario/recetas/a.jpg", r.imagenUrl)
     }
 
     @Test
-    fun crearReceta_asociaPropiedadExclusivamenteAlUsuarioActual() = runTest {
-        sessionStorage.guardarSesion("token-A", usuarioA)
-
-        val receta = Receta(
-            id = "",
-            titulo = "Tacos de Alice",
-            descripcion = "Receta secreta",
-            categoria = "comida",
-            tiempoMinutos = 20,
-            porciones = 2,
-            ingredientes = listOf(Ingrediente("Tortillas"), Ingrediente("Carne")),
-            pasos = listOf("Calentar", "Servir"),
-        )
-
-        val resultado = repository.crear(receta)
-        assertTrue(resultado.isSuccess)
-        val idCreado = resultado.getOrThrow().id
-
-        // Usuario A es propietario
-        assertTrue(repository.esPropietario(idCreado))
-
-        // Usuario B NO es propietario de la receta creada por Usuario A
-        sessionStorage.guardarSesion("token-B", usuarioB)
-        assertFalse(repository.esPropietario(idCreado))
+    fun recetaSinFoto_imagenUrlEsNull() = runTest {
+        fakeApi.recetas += dto("a", esPropia = false)
+        assertEquals(null, repository.obtener("a").getOrThrow().imagenUrl)
     }
 
     @Test
-    fun eliminarReceta_remuevePropiedadDelUsuarioActual() = runTest {
-        sessionStorage.guardarSesion("token-A", usuarioA)
-        repository.registrarRecetaPropia("receta-a-borrar")
-        fakeApi.recetasDto.add(
-            RecetaDto(
-                recetaId = "receta-a-borrar",
-                titulo = "A borrar",
-                descripcion = "",
-                categoria = "comida",
-                tiempoMinutos = 5,
-                porciones = 1,
-                ingredientes = emptyList(),
-                pasos = emptyList(),
-            )
-        )
+    fun eliminar_llamaALaApi() = runTest {
+        fakeApi.recetas += dto("a", esPropia = true)
+        assertTrue(repository.eliminar("a").isSuccess)
+        assertFalse(fakeApi.recetas.any { it.recetaId == "a" })
+    }
 
-        assertTrue(repository.esPropietario("receta-a-borrar"))
+    // ---- la API distingue "omitido", null y texto en imagenUrl/imagenPublicId ----
 
-        val resultado = repository.eliminar("receta-a-borrar")
-        assertTrue(resultado.isSuccess)
-        assertFalse(repository.esPropietario("receta-a-borrar"))
+    private fun cuerpo(imagen: CambioImagen): JsonObject =
+        json.encodeToJsonElement(RecetaRequestDto.serializer(), receta.toRequestDto(imagen)).jsonObject
+
+    @Test
+    fun cuerpoMantener_noIncluyeLosCamposDeImagen() {
+        val c = cuerpo(CambioImagen.Mantener)
+        assertFalse(c.containsKey("imagenUrl"))
+        assertFalse(c.containsKey("imagenPublicId"))
+    }
+
+    @Test
+    fun cuerpoQuitar_enviaAmbosCamposEnNull() {
+        val c = cuerpo(CambioImagen.Quitar)
+        assertEquals(JsonNull, c["imagenUrl"])
+        assertEquals(JsonNull, c["imagenPublicId"])
+    }
+
+    @Test
+    fun cuerpoEstablecer_enviaUrlYPublicId() {
+        val c = cuerpo(CambioImagen.Establecer("https://x/y.jpg", "recetario/recetas/receta-1"))
+        assertEquals(JsonPrimitive("https://x/y.jpg"), c["imagenUrl"])
+        assertEquals(JsonPrimitive("recetario/recetas/receta-1"), c["imagenPublicId"])
     }
 
     private class FakeRecetaApiService : RecetaApiService {
-        val recetasDto = mutableListOf<RecetaDto>()
+        val recetas = mutableListOf<RecetaDto>()
+        var ultimoMias: Boolean? = null
 
-        override suspend fun listar(): RecetasResponseDto = RecetasResponseDto(recetas = recetasDto)
-        override suspend fun obtener(id: String): RecetaDto = recetasDto.first { it.recetaId == id }
+        override suspend fun listar(mias: Boolean?): RecetasResponseDto {
+            ultimoMias = mias
+            return RecetasResponseDto(recetas = if (mias == true) recetas.filter { it.esPropia } else recetas)
+        }
+
+        override suspend fun obtener(id: String): RecetaDto = recetas.first { it.recetaId == id }
+
         override suspend fun crear(body: RecetaRequestDto): RecetaDto {
-            val dto = RecetaDto(
-                recetaId = "receta-${recetasDto.size + 1}",
-                titulo = body.titulo,
-                descripcion = body.descripcion,
-                categoria = body.categoria,
-                tiempoMinutos = body.tiempoMinutos,
-                porciones = body.porciones,
-                ingredientes = body.ingredientes,
-                pasos = body.pasos,
-            )
-            recetasDto.add(dto)
-            return dto
+            val d = RecetaDto(recetaId = "receta-${recetas.size + 1}", titulo = body.titulo, esPropia = true)
+            recetas.add(d)
+            return d
         }
-        override suspend fun actualizar(id: String, body: RecetaRequestDto): RecetaDto {
-            val index = recetasDto.indexOfFirst { it.recetaId == id }
-            val updated = RecetaDto(
-                recetaId = id,
-                titulo = body.titulo,
-                descripcion = body.descripcion,
-                categoria = body.categoria,
-                tiempoMinutos = body.tiempoMinutos,
-                porciones = body.porciones,
-                ingredientes = body.ingredientes,
-                pasos = body.pasos,
-            )
-            if (index != -1) recetasDto[index] = updated
-            return updated
-        }
+
+        override suspend fun actualizar(id: String, body: RecetaRequestDto): RecetaDto =
+            recetas.first { it.recetaId == id }
+
+        override suspend fun firmarImagen(id: String): FirmaImagenDto = FirmaImagenDto(
+            uploadUrl = "https://api.cloudinary.com/v1_1/demo/image/upload",
+            cloudName = "demo",
+            apiKey = "k",
+            timestamp = 1L,
+            signature = "s",
+            publicId = "recetario/recetas/$id",
+            allowedFormats = "jpg,png,webp",
+            overwrite = true,
+            invalidate = true,
+        )
+
         override suspend fun eliminar(id: String) {
-            recetasDto.removeAll { it.recetaId == id }
+            recetas.removeAll { it.recetaId == id }
         }
     }
 }

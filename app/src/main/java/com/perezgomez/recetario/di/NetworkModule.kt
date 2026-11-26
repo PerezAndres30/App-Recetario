@@ -9,6 +9,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.TimeUnit
+import javax.inject.Named
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -45,6 +46,20 @@ object NetworkModule {
             .readTimeout(20, TimeUnit.SECONDS)
             .build()
     }
+
+    /**
+     * Cliente SOLO para Cloudinary: sin AuthInterceptor (no se manda el token de la API a un tercero)
+     * y sin logging del cuerpo. Timeouts más largos porque sube una foto.
+     */
+    @Provides
+    @Singleton
+    @Named("cloudinary")
+    fun provideOkHttpClientCloudinary(): OkHttpClient =
+        OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
 
     @Provides
     @Singleton
