@@ -4,10 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.perezgomez.recetario.domain.repository.AuthRepository
-import com.perezgomez.recetario.presentation.navigation.AppNavHost
-import com.perezgomez.recetario.presentation.navigation.Rutas
-import com.perezgomez.recetario.presentation.theme.RecetarioTheme
+import com.perezgomez.recetario.core.navigation.AppNavHost
+import com.perezgomez.recetario.core.navigation.Rutas
+import com.perezgomez.recetario.features.auth.domain.repositories.AuthRepository
+import com.perezgomez.recetario.ui.theme.RecetarioTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 

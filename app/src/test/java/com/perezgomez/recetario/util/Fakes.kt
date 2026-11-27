@@ -1,15 +1,15 @@
 package com.perezgomez.recetario.util
 
-import com.perezgomez.recetario.domain.model.Receta
-import com.perezgomez.recetario.domain.model.Usuario
-import com.perezgomez.recetario.domain.repository.AuthRepository
-import com.perezgomez.recetario.domain.repository.RecetaRepository
-import com.perezgomez.recetario.domain.session.SessionStorage
-import com.perezgomez.recetario.domain.tts.EstadoLectura
-import com.perezgomez.recetario.domain.tts.EtapaLectura
-import com.perezgomez.recetario.domain.tts.RecetaTtsService
-import com.perezgomez.recetario.domain.tts.TtsEngine
-import com.perezgomez.recetario.domain.tts.TtsEventListener
+import com.perezgomez.recetario.core.hardware.tts.domain.TtsEngine
+import com.perezgomez.recetario.core.hardware.tts.domain.TtsEventListener
+import com.perezgomez.recetario.features.auth.domain.entities.Usuario
+import com.perezgomez.recetario.features.auth.domain.repositories.AuthRepository
+import com.perezgomez.recetario.features.auth.domain.repositories.SessionStorage
+import com.perezgomez.recetario.features.recetas.domain.entities.Receta
+import com.perezgomez.recetario.features.recetas.domain.repositories.RecetaRepository
+import com.perezgomez.recetario.features.recetas.domain.tts.EstadoLectura
+import com.perezgomez.recetario.features.recetas.domain.tts.EtapaLectura
+import com.perezgomez.recetario.features.recetas.domain.tts.RecetaTtsService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
