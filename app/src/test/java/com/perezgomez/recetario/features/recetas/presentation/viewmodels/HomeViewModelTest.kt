@@ -49,6 +49,7 @@ class HomeViewModelTest {
         porciones = 2,
         ingredientes = emptyList(),
         pasos = emptyList(),
+        esPropia = true,
     )
 
     @Before
@@ -118,13 +119,13 @@ class HomeViewModelTest {
     fun modoMisRecetas_conRecetaPropiaVerificada_muestraUnicamenteLaRecetaPropia() = runTest {
         recetaRepository.recetas.add(recetaGlobal)
         recetaRepository.recetas.add(recetaPropia)
-        recetaRepository.registrarRecetaPropia(recetaPropia.id)
 
         viewModel.configurarModo(ModoHome.MIS_RECETAS)
         viewModel.cargar()
 
         mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
 
+        assertEquals(true, recetaRepository.ultimoSoloMias)
         val state = viewModel.uiState.value
         assertTrue(state.lista is ListaUi.Contenido)
         val contenido = state.lista as ListaUi.Contenido
@@ -148,7 +149,6 @@ class HomeViewModelTest {
     @Test
     fun eliminacion_enRecetaPropiaVerificada_esExitosa() = runTest {
         recetaRepository.recetas.add(recetaPropia)
-        recetaRepository.registrarRecetaPropia(recetaPropia.id)
 
         viewModel.configurarModo(ModoHome.MIS_RECETAS)
         viewModel.cargar()

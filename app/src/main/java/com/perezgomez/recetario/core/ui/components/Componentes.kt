@@ -1,9 +1,11 @@
 package com.perezgomez.recetario.core.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +13,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.RestaurantMenu
+import coil.compose.AsyncImage
+import java.io.File
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -204,4 +216,98 @@ fun ConfirmarEliminarDialog(
             }
         },
     )
+}
+
+/**
+ * Foto de una receta. [origen] puede ser una URL https (foto subida) o la ruta de un archivo local
+ * (vista previa antes de subir). Si es null o está vacía muestra un ícono, nunca un espacio roto.
+ */
+@Composable
+fun ImagenReceta(
+    origen: String?,
+    descripcion: String?,
+    modifier: Modifier = Modifier,
+) {
+    val forma = RoundedCornerShape(16.dp)
+    Box(
+        modifier = modifier.clip(forma).background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (origen.isNullOrBlank()) {
+            Icon(
+                imageVector = Icons.Filled.RestaurantMenu,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            AsyncImage(
+                model = if (origen.startsWith("/")) File(origen) else origen,
+                contentDescription = descripcion,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+/** Sección del formulario para tomar, elegir o quitar la foto de la receta. */
+@Composable
+fun SeccionFoto(
+    vistaPrevia: String?,
+    procesando: Boolean,
+    habilitado: Boolean,
+    onTomarFoto: () -> Unit,
+    onElegirDeGaleria: () -> Unit,
+    onQuitarFoto: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = "FOTO (OPCIONAL)",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Box(contentAlignment = Alignment.Center) {
+            if (vistaPrevia != null) {
+                ImagenReceta(
+                    origen = vistaPrevia,
+                    descripcion = "Foto de la receta",
+                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Sin foto", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (procesando) CircularProgressIndicator()
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onTomarFoto, enabled = habilitado, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(6.dp))
+                Text("Cámara")
+            }
+            OutlinedButton(onClick = onElegirDeGaleria, enabled = habilitado, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(6.dp))
+                Text("Galería")
+            }
+        }
+        if (vistaPrevia != null) {
+            OutlinedButton(onClick = onQuitarFoto, enabled = habilitado, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(6.dp))
+                Text("Quitar foto")
+            }
+        }
+    }
 }

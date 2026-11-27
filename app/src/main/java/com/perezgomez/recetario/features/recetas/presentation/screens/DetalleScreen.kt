@@ -1,6 +1,7 @@
 package com.perezgomez.recetario.features.recetas.presentation.screens
 
 import androidx.compose.foundation.BorderStroke
+import com.perezgomez.recetario.core.ui.components.ImagenReceta
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -240,7 +241,13 @@ private fun RecetaCompleta(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
-                Column(
+                if (!receta.imagenUrl.isNullOrBlank()) {
+                    ImagenReceta(
+                        origen = receta.imagenUrl,
+                        descripcion = "Foto de ${receta.titulo}",
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {

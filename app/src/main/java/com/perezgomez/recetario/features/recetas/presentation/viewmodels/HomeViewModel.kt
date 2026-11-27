@@ -60,15 +60,16 @@ class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            // "Mis recetas" consulta ?mias=true vía UseCase; el catálogo es público.
             val resultado = when (_uiState.value.modo) {
-                ModoHome.EXPLORAR -> recetaRepository.listar()
+                ModoHome.EXPLORAR -> recetaRepository.listar(soloMias = false)
                 ModoHome.MIS_RECETAS -> getMisRecetasUseCase()
             }
             resultado
-                .onSuccess { recetasFiltradas ->
+                .onSuccess { recetas ->
                     _uiState.update { estado ->
                         estado.copy(
-                            lista = if (recetasFiltradas.isEmpty()) ListaUi.Vacia else ListaUi.Contenido(recetasFiltradas),
+                            lista = if (recetas.isEmpty()) ListaUi.Vacia else ListaUi.Contenido(recetas),
                             actualizando = false,
                         )
                     }
@@ -87,8 +88,8 @@ class HomeViewModel @Inject constructor(
     }
 
     fun onEliminarClick(receta: Receta) {
-        // Solo permite abrir la confirmación si la receta tiene propiedad verificada
-        if (!authRepository.haySesion() || !recetaRepository.esPropietario(receta.id)) return
+        // Solo el creador puede eliminar (la API lo marca con esPropia y además lo exige con 403)
+        if (!authRepository.haySesion() || !receta.esPropia) return
         _uiState.update { it.copy(recetaAEliminar = receta) }
     }
 
@@ -96,11 +97,15 @@ class HomeViewModel @Inject constructor(
 
     fun onConfirmarEliminar() {
         val receta = _uiState.value.recetaAEliminar ?: return
+        if (!authRepository.haySesion() || !receta.esPropia) {
+            _uiState.update { it.copy(recetaAEliminar = null) }
+            return
+        }
         if (_uiState.value.eliminando) return
 
         _uiState.update { it.copy(eliminando = true) }
         viewModelScope.launch {
-            eliminarRecetaPropiaUseCase(receta.id)
+            eliminarRecetaPropiaUseCase(receta.id, receta.esPropia)
                 .onSuccess {
                     _uiState.update { estado ->
                         val restantes = (estado.lista as? ListaUi.Contenido)?.recetas

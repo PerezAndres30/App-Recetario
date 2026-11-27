@@ -6,8 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.perezgomez.recetario.core.domain.validation.Validadores
 import com.perezgomez.recetario.core.navigation.Rutas
 import com.perezgomez.recetario.features.auth.domain.repositories.AuthRepository
+import com.perezgomez.recetario.features.recetas.domain.entities.CambioImagen
 import com.perezgomez.recetario.features.recetas.domain.entities.Ingrediente
 import com.perezgomez.recetario.features.recetas.domain.entities.Receta
+import com.perezgomez.recetario.features.recetas.domain.imagen.ProcesadorImagen
+import com.perezgomez.recetario.features.recetas.domain.repositories.ImagenRepository
 import com.perezgomez.recetario.features.recetas.domain.repositories.RecetaRepository
 import com.perezgomez.recetario.features.recetas.presentation.screens.FormErrores
 import com.perezgomez.recetario.features.recetas.presentation.screens.FormUiState
@@ -25,11 +28,14 @@ import kotlinx.coroutines.launch
 class FormViewModel @Inject constructor(
     private val recetaRepository: RecetaRepository,
     private val authRepository: AuthRepository,
+    private val imagenRepository: ImagenRepository,
+    private val procesadorImagen: ProcesadorImagen,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val recetaId: String? = savedStateHandle[Rutas.ARG_ID]
     private var creadaEn: String = ""
+    private var imagenOriginalUrl: String? = null
 
     private val _uiState = MutableStateFlow(
         FormUiState(esEdicion = recetaId != null, cargando = recetaId != null),
@@ -47,6 +53,7 @@ class FormViewModel @Inject constructor(
             recetaRepository.obtener(id)
                 .onSuccess { receta ->
                     creadaEn = receta.creadaEn
+                    imagenOriginalUrl = receta.imagenUrl
                     _uiState.update {
                         it.copy(
                             cargando = false,
@@ -60,6 +67,7 @@ class FormViewModel @Inject constructor(
                                 .ifEmpty { listOf(IngredienteForm()) },
                             pasos = receta.pasos.ifEmpty { listOf("") },
                             favorita = receta.favorita,
+                            imagenUrlActual = receta.imagenUrl,
                         )
                     }
                 }
@@ -122,9 +130,39 @@ class FormViewModel @Inject constructor(
             if (it.pasos.size <= 1) it else it.copy(pasos = it.pasos.filterIndexed { i, _ -> i != indice })
         }
 
+    // ---- foto -------------------------------------------------------------
+
+    /** La cámara o la galería devolvieron [origen] (uri): se comprime y queda como vista previa. */
+    fun onFotoElegida(origen: String) {
+        if (_uiState.value.procesandoImagen || _uiState.value.guardando) return
+        _uiState.update { it.copy(procesandoImagen = true, error = null) }
+        viewModelScope.launch {
+            procesadorImagen.preparar(origen)
+                .onSuccess { lista ->
+                    _uiState.value.imagenLocal?.let(procesadorImagen::descartar)
+                    _uiState.update { it.copy(procesandoImagen = false, imagenLocal = lista.ruta) }
+                }
+                .onFailure { e -> _uiState.update { it.copy(procesandoImagen = false, error = e.message) } }
+        }
+    }
+
+    /** Quita la foto de la vista previa: la nueva (si había) y la que ya tenía la receta. */
+    fun onQuitarFoto() {
+        _uiState.value.imagenLocal?.let(procesadorImagen::descartar)
+        _uiState.update { it.copy(imagenLocal = null, imagenUrlActual = null) }
+    }
+
+    fun onFotoError(mensaje: String) = _uiState.update { it.copy(error = mensaje) }
+
+    override fun onCleared() {
+        super.onCleared()
+        // Si salió sin guardar, el archivo temporal ya no sirve.
+        if (!_uiState.value.guardado) _uiState.value.imagenLocal?.let(procesadorImagen::descartar)
+    }
+
     fun onGuardar() {
         val actual = _uiState.value
-        if (actual.guardando || actual.cargando) return
+        if (actual.guardando || actual.cargando || actual.procesandoImagen) return
 
         if (!authRepository.haySesion()) {
             _uiState.update { it.copy(error = "Debes iniciar sesión para crear o editar recetas.") }
@@ -154,23 +192,50 @@ class FormViewModel @Inject constructor(
 
         _uiState.update { it.copy(guardando = true, error = null) }
         viewModelScope.launch {
-            val resultado = if (recetaId == null) {
-                recetaRepository.crear(receta)
-            } else {
-                recetaRepository.actualizar(receta)
-            }
-            resultado
-                .onSuccess {
-                    _uiState.update {
-                        it.copy(
-                            guardando = false,
-                            guardado = true,
-                            mensajeExito = if (recetaId == null) "Receta creada" else "Receta actualizada",
-                        )
-                    }
-                }
-                .onFailure { e -> _uiState.update { it.copy(guardando = false, error = e.message) } }
+            if (recetaId == null) guardarNueva(receta, actual.imagenLocal) else guardarEdicion(receta, actual)
         }
+    }
+
+    /** Receta nueva: primero se guarda el texto (así existe un id) y después se sube la foto. */
+    private suspend fun guardarNueva(receta: Receta, fotoLocal: String?) {
+        val creada = recetaRepository.crear(receta).getOrElse { e ->
+            _uiState.update { it.copy(guardando = false, error = e.message) }
+            return
+        }
+        var mensaje = "Receta creada"
+        if (fotoLocal != null) {
+            val subida = imagenRepository.subir(creada.id, fotoLocal)
+                .mapCatching { img ->
+                    recetaRepository.actualizar(creada, CambioImagen.Establecer(img.url, img.publicId)).getOrThrow()
+                }
+            if (subida.isFailure) {
+                mensaje = "Receta creada, pero la foto no se pudo subir. Edita la receta para intentarlo otra vez."
+            }
+            procesadorImagen.descartar(fotoLocal)
+        }
+        _uiState.update { it.copy(guardando = false, guardado = true, mensajeExito = mensaje) }
+    }
+
+    /** Edición: si hay foto nueva se sube primero; si falla, no se guarda nada y se puede reintentar. */
+    private suspend fun guardarEdicion(receta: Receta, actual: FormUiState) {
+        val cambio: CambioImagen = if (actual.imagenLocal != null) {
+            val img = imagenRepository.subir(receta.id, actual.imagenLocal).getOrElse { e ->
+                _uiState.update { it.copy(guardando = false, error = e.message) }
+                return
+            }
+            CambioImagen.Establecer(img.url, img.publicId)
+        } else if (imagenOriginalUrl != null && actual.imagenUrlActual == null) {
+            CambioImagen.Quitar
+        } else {
+            CambioImagen.Mantener
+        }
+
+        recetaRepository.actualizar(receta, cambio)
+            .onSuccess {
+                actual.imagenLocal?.let(procesadorImagen::descartar)
+                _uiState.update { it.copy(guardando = false, guardado = true, mensajeExito = "Receta actualizada") }
+            }
+            .onFailure { e -> _uiState.update { it.copy(guardando = false, error = e.message) } }
     }
 
     // ---- validación -------------------------------------------------------

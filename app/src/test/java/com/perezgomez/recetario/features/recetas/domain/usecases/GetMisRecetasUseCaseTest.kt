@@ -33,6 +33,7 @@ class GetMisRecetasUseCaseTest {
         porciones = 2,
         ingredientes = emptyList(),
         pasos = emptyList(),
+        esPropia = true,
     )
 
     @Before
@@ -44,7 +45,6 @@ class GetMisRecetasUseCaseTest {
     @Test
     fun usuarioSinSesion_devuelveListaVaciaYNoConsultaRepositorio() = runTest {
         recetaRepository.recetas.addAll(listOf(recetaAjena, recetaPropia))
-        recetaRepository.registrarRecetaPropia(recetaPropia.id)
         val useCase = GetMisRecetasUseCase(recetaRepository, FakeAuthRepository(null))
 
         val resultado = useCase()
@@ -57,7 +57,6 @@ class GetMisRecetasUseCaseTest {
     @Test
     fun usuarioAutenticado_conRecetasPropiasYAjenas_filtraSoloLasPropias() = runTest {
         recetaRepository.recetas.addAll(listOf(recetaAjena, recetaPropia))
-        recetaRepository.registrarRecetaPropia(recetaPropia.id)
         val useCase = GetMisRecetasUseCase(recetaRepository, authRepository)
 
         val resultado = useCase()
@@ -67,6 +66,7 @@ class GetMisRecetasUseCaseTest {
         assertEquals(1, lista.size)
         assertEquals("receta-propia-1", lista.first().id)
         assertEquals(1, recetaRepository.llamadasListar)
+        assertEquals(true, recetaRepository.ultimoSoloMias)
     }
 
     @Test

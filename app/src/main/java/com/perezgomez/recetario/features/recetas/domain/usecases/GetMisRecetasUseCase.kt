@@ -6,9 +6,8 @@ import com.perezgomez.recetario.features.recetas.domain.repositories.RecetaRepos
 import javax.inject.Inject
 
 /**
- * Obtiene las recetas cuya autoría provisional está verificada para el usuario autenticado.
- * Nota: la autoría local es provisional mientras el backend no devuelva propietario y
- * no sustituye la autorización definitiva del servidor.
+ * Obtiene las recetas del usuario autenticado solicitando ?mias=true a la API
+ * y verificando la marca de propiedad [Receta.esPropia] devuelta por el servidor.
  */
 class GetMisRecetasUseCase @Inject constructor(
     private val recetaRepository: RecetaRepository,
@@ -18,8 +17,8 @@ class GetMisRecetasUseCase @Inject constructor(
         if (!authRepository.haySesion()) {
             return Result.success(emptyList())
         }
-        return recetaRepository.listar().map { recetas ->
-            recetas.filter { recetaRepository.esPropietario(it.id) }
+        return recetaRepository.listar(soloMias = true).map { recetas ->
+            recetas.filter { it.esPropia }
         }
     }
 }

@@ -7,18 +7,17 @@ import javax.inject.Inject
 
 /**
  * Verifica que exista una sesión activa y que la receta pertenezca al usuario autenticado
- * antes de delegar la eliminación al repositorio.
- * Nota: la autoría local es provisional y no sustituye la autorización definitiva del backend.
+ * según el indicador [Receta.esPropia] emitido por el backend antes de delegar la eliminación.
  */
 class EliminarRecetaPropiaUseCase @Inject constructor(
     private val recetaRepository: RecetaRepository,
     private val authRepository: AuthRepository,
 ) {
-    suspend operator fun invoke(recetaId: String): Result<Unit> {
+    suspend operator fun invoke(recetaId: String, esPropia: Boolean): Result<Unit> {
         if (!authRepository.haySesion()) {
             return Result.failure(AppException("Debes iniciar sesión para eliminar recetas."))
         }
-        if (!recetaRepository.esPropietario(recetaId)) {
+        if (!esPropia) {
             return Result.failure(AppException("Solo puedes eliminar recetas creadas por ti."))
         }
         return recetaRepository.eliminar(recetaId)

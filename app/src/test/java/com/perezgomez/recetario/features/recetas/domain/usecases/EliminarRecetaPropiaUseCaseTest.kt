@@ -33,6 +33,7 @@ class EliminarRecetaPropiaUseCaseTest {
         porciones = 3,
         ingredientes = emptyList(),
         pasos = emptyList(),
+        esPropia = true,
     )
 
     @Before
@@ -40,14 +41,13 @@ class EliminarRecetaPropiaUseCaseTest {
         recetaRepository = FakeRecetaRepository()
         authRepository = FakeAuthRepository(Usuario("user-1", "Carlos", "carlos@test.com"))
         recetaRepository.recetas.addAll(listOf(recetaAjena, recetaPropia))
-        recetaRepository.registrarRecetaPropia(recetaPropia.id)
     }
 
     @Test
     fun usuarioSinSesion_bloqueaEliminacionYNoLlamaRepositorio() = runTest {
         val useCase = EliminarRecetaPropiaUseCase(recetaRepository, FakeAuthRepository(null))
 
-        val resultado = useCase(recetaPropia.id)
+        val resultado = useCase(recetaPropia.id, esPropia = recetaPropia.esPropia)
 
         assertTrue(resultado.isFailure)
         assertEquals(0, recetaRepository.llamadasEliminar)
@@ -58,7 +58,7 @@ class EliminarRecetaPropiaUseCaseTest {
     fun recetaAjena_bloqueaEliminacionYNoLlamaRepositorio() = runTest {
         val useCase = EliminarRecetaPropiaUseCase(recetaRepository, authRepository)
 
-        val resultado = useCase(recetaAjena.id)
+        val resultado = useCase(recetaAjena.id, esPropia = recetaAjena.esPropia)
 
         assertTrue(resultado.isFailure)
         assertEquals(0, recetaRepository.llamadasEliminar)
@@ -69,7 +69,7 @@ class EliminarRecetaPropiaUseCaseTest {
     fun recetaPropiaConSesionActiva_eliminaEnRepositorioConExito() = runTest {
         val useCase = EliminarRecetaPropiaUseCase(recetaRepository, authRepository)
 
-        val resultado = useCase(recetaPropia.id)
+        val resultado = useCase(recetaPropia.id, esPropia = recetaPropia.esPropia)
 
         assertTrue(resultado.isSuccess)
         assertEquals(1, recetaRepository.llamadasEliminar)
@@ -82,7 +82,7 @@ class EliminarRecetaPropiaUseCaseTest {
         recetaRepository.mensajeError = "No se pudo eliminar en el servidor"
         val useCase = EliminarRecetaPropiaUseCase(recetaRepository, authRepository)
 
-        val resultado = useCase(recetaPropia.id)
+        val resultado = useCase(recetaPropia.id, esPropia = recetaPropia.esPropia)
 
         assertTrue(resultado.isFailure)
         assertEquals(1, recetaRepository.llamadasEliminar)

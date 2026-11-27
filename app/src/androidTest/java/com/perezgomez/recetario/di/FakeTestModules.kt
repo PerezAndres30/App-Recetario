@@ -6,8 +6,13 @@ import com.perezgomez.recetario.features.auth.domain.entities.Usuario
 import com.perezgomez.recetario.features.auth.domain.repositories.AuthRepository
 import com.perezgomez.recetario.features.auth.domain.repositories.SessionStorage
 import com.perezgomez.recetario.features.recetas.di.RecetasRepositoryModule
+import com.perezgomez.recetario.features.recetas.domain.entities.CambioImagen
+import com.perezgomez.recetario.features.recetas.domain.entities.ImagenSubida
 import com.perezgomez.recetario.features.recetas.domain.entities.Ingrediente
 import com.perezgomez.recetario.features.recetas.domain.entities.Receta
+import com.perezgomez.recetario.features.recetas.domain.imagen.ImagenLista
+import com.perezgomez.recetario.features.recetas.domain.imagen.ProcesadorImagen
+import com.perezgomez.recetario.features.recetas.domain.repositories.ImagenRepository
 import com.perezgomez.recetario.features.recetas.domain.repositories.RecetaRepository
 import com.perezgomez.recetario.features.recetas.domain.tts.RecetaTtsService
 import com.perezgomez.recetario.features.recetas.domain.tts.RecetaTtsServiceImpl
@@ -76,17 +81,13 @@ class FakeAndroidAuthRepository @Inject constructor(
 }
 
 @Singleton
-class FakeAndroidRecetaRepository @Inject constructor(
-    private val session: InMemorySessionStorage,
-) : RecetaRepository {
+class FakeAndroidRecetaRepository @Inject constructor() : RecetaRepository {
 
     val recetas = mutableListOf<Receta>()
-    private val recetasPorUsuario = mutableMapOf<String, MutableSet<String>>()
     private var contadorId = 100
 
     fun reiniciarDatosDePrueba() {
         recetas.clear()
-        recetasPorUsuario.clear()
         contadorId = 100
 
         val comunitaria = Receta(
@@ -106,6 +107,7 @@ class FakeAndroidRecetaRepository @Inject constructor(
             ),
             favorita = false,
             creadaEn = "2026-11-20T10:00:00Z",
+            esPropia = false,
         )
 
         val propia = Receta(
@@ -127,25 +129,14 @@ class FakeAndroidRecetaRepository @Inject constructor(
             ),
             favorita = true,
             creadaEn = "2026-11-24T09:00:00Z",
+            esPropia = true,
         )
 
         recetas.addAll(listOf(comunitaria, propia))
-        recetasPorUsuario.getOrPut("user-1") { mutableSetOf() }.add(propia.id)
     }
 
-    override fun esPropietario(recetaId: String): Boolean {
-        val usuarioId = session.usuario()?.id ?: return false
-        return recetasPorUsuario[usuarioId]?.contains(recetaId) == true
-    }
-
-    override fun registrarRecetaPropia(recetaId: String) {
-        val usuarioId = session.usuario()?.id ?: return
-        if (recetaId.isNotBlank()) {
-            recetasPorUsuario.getOrPut(usuarioId) { mutableSetOf() }.add(recetaId)
-        }
-    }
-
-    override suspend fun listar(): Result<List<Receta>> = Result.success(recetas.toList())
+    override suspend fun listar(soloMias: Boolean): Result<List<Receta>> =
+        Result.success(if (soloMias) recetas.filter { it.esPropia } else recetas.toList())
 
     override suspend fun obtener(id: String): Result<Receta> {
         val encontrada = recetas.find { it.id == id }
@@ -158,28 +149,64 @@ class FakeAndroidRecetaRepository @Inject constructor(
 
     override suspend fun crear(receta: Receta): Result<Receta> {
         val nuevoId = "receta-creada-${++contadorId}"
-        val creada = receta.copy(id = nuevoId, creadaEn = "2026-11-26T18:00:00Z")
+        val creada = receta.copy(
+            id = nuevoId,
+            creadaEn = "2026-11-26T18:00:00Z",
+            esPropia = true,
+        )
         recetas.add(creada)
-        registrarRecetaPropia(creada.id)
         return Result.success(creada)
     }
 
-    override suspend fun actualizar(receta: Receta): Result<Receta> {
+    override suspend fun actualizar(receta: Receta, imagen: CambioImagen): Result<Receta> {
         val indice = recetas.indexOfFirst { it.id == receta.id }
-        if (indice >= 0) {
-            recetas[indice] = receta
+        val actual = if (indice >= 0) recetas[indice] else null
+        val resultado = when (imagen) {
+            CambioImagen.Mantener -> receta.copy(
+                esPropia = actual?.esPropia ?: true,
+                imagenUrl = actual?.imagenUrl,
+                imagenPublicId = actual?.imagenPublicId,
+            )
+            CambioImagen.Quitar -> receta.copy(
+                esPropia = actual?.esPropia ?: true,
+                imagenUrl = null,
+                imagenPublicId = null,
+            )
+            is CambioImagen.Establecer -> receta.copy(
+                esPropia = actual?.esPropia ?: true,
+                imagenUrl = imagen.url,
+                imagenPublicId = imagen.publicId,
+            )
         }
-        return Result.success(receta)
+        if (indice >= 0) {
+            recetas[indice] = resultado
+        }
+        return Result.success(resultado)
     }
 
     override suspend fun eliminar(id: String): Result<Unit> {
         recetas.removeAll { it.id == id }
-        val usuarioId = session.usuario()?.id
-        if (usuarioId != null) {
-            recetasPorUsuario[usuarioId]?.remove(id)
-        }
         return Result.success(Unit)
     }
+}
+
+@Singleton
+class FakeAndroidImagenRepository @Inject constructor() : ImagenRepository {
+    override suspend fun subir(recetaId: String, rutaArchivo: String): Result<ImagenSubida> =
+        Result.success(
+            ImagenSubida(
+                url = "https://res.cloudinary.com/demo/image/upload/v1/recetario/recetas/$recetaId.jpg",
+                publicId = "recetario/recetas/$recetaId",
+            ),
+        )
+}
+
+@Singleton
+class FakeAndroidProcesadorImagen @Inject constructor() : ProcesadorImagen {
+    override suspend fun preparar(origen: String): Result<ImagenLista> =
+        Result.success(ImagenLista(ruta = "/cache/fotos/simulada.jpg", bytes = 150_000L))
+
+    override fun descartar(ruta: String) = Unit
 }
 
 @Module
@@ -204,6 +231,14 @@ abstract class FakeTestRepositoriesModule {
     @Binds
     @Singleton
     abstract fun bindRecetaRepository(impl: FakeAndroidRecetaRepository): RecetaRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindImagenRepository(impl: FakeAndroidImagenRepository): ImagenRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindProcesadorImagen(impl: FakeAndroidProcesadorImagen): ProcesadorImagen
 
     // Se conserva la implementación real RecetaTtsServiceImpl junto con AndroidTtsEngine (core/hardware/tts/di/TtsModule).
     @Binds

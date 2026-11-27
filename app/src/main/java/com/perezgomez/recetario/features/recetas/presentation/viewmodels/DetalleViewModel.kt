@@ -31,7 +31,6 @@ class DetalleViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(
         DetalleUiState(
-            esPropietarioVerificado = authRepository.haySesion() && recetaRepository.esPropietario(recetaId),
             ttsState = recetaTtsService.estado.value,
         ),
     )
@@ -47,14 +46,17 @@ class DetalleViewModel @Inject constructor(
 
     fun cargar() {
         val yaHayDatos = _uiState.value.contenido is DetalleContenido.Listo
-        val esPropia = authRepository.haySesion() && recetaRepository.esPropietario(recetaId)
-        _uiState.update { it.copy(esPropietarioVerificado = esPropia) }
         if (!yaHayDatos) _uiState.update { it.copy(contenido = DetalleContenido.Cargando) }
 
         viewModelScope.launch {
             recetaRepository.obtener(recetaId)
                 .onSuccess { receta ->
-                    _uiState.update { it.copy(contenido = DetalleContenido.Listo(receta)) }
+                    _uiState.update {
+                        it.copy(
+                            contenido = DetalleContenido.Listo(receta),
+                            esPropietarioVerificado = authRepository.haySesion() && receta.esPropia,
+                        )
+                    }
                 }
                 .onFailure { e ->
                     val texto = e.message ?: "No se pudo cargar la receta."
@@ -95,9 +97,10 @@ class DetalleViewModel @Inject constructor(
 
     fun onConfirmarEliminar() {
         if (_uiState.value.eliminando) return
+        val esPropia = (_uiState.value.contenido as? DetalleContenido.Listo)?.receta?.esPropia == true
         _uiState.update { it.copy(eliminando = true) }
         viewModelScope.launch {
-            eliminarRecetaPropiaUseCase(recetaId)
+            eliminarRecetaPropiaUseCase(recetaId, esPropia)
                 .onSuccess {
                     recetaTtsService.detener()
                     _uiState.update { it.copy(eliminando = false, confirmandoEliminar = false, eliminada = true) }
