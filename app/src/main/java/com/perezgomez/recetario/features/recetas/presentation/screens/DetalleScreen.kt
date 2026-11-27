@@ -3,7 +3,9 @@ package com.perezgomez.recetario.features.recetas.presentation.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,6 +52,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -647,65 +651,141 @@ private fun SeccionLecturaVoz(
                     }
                 }
 
-                // Fila con los 3 controles: Reproducir, Continuar, Repetir
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Button(
-                        onClick = onReproducir,
-                        enabled = ttsState.etapa == EtapaLectura.INACTIVO || ttsState.etapa == EtapaLectura.FINALIZADO,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (ttsState.esFinalizado) "Reiniciar" else "Reproducir",
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-
-                    OutlinedButton(
-                        onClick = onContinuar,
-                        enabled = ttsState.puedeContinuar,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Continuar",
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-
-                    OutlinedButton(
-                        onClick = onRepetir,
-                        enabled = ttsState.puedeRepetir,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Replay,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Repetir",
-                            style = MaterialTheme.typography.labelMedium,
-                        )
+                // Fila responsive con los 3 controles: Reproducir/Reiniciar, Continuar, Repetir
+                val densidad = LocalDensity.current
+                val paddingBotones = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val usarDosFilas = maxWidth < 300.dp || densidad.fontScale > 1.15f
+                    if (usarDosFilas) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                BotonReproducirTts(
+                                    esFinalizado = ttsState.esFinalizado,
+                                    habilitado = ttsState.etapa == EtapaLectura.INACTIVO || ttsState.etapa == EtapaLectura.FINALIZADO,
+                                    onClick = onReproducir,
+                                    contentPadding = paddingBotones,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                BotonSecundarioTts(
+                                    texto = "Continuar",
+                                    icono = Icons.AutoMirrored.Filled.ArrowForward,
+                                    habilitado = ttsState.puedeContinuar,
+                                    onClick = onContinuar,
+                                    contentPadding = paddingBotones,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            BotonSecundarioTts(
+                                texto = "Repetir",
+                                icono = Icons.Default.Replay,
+                                habilitado = ttsState.puedeRepetir,
+                                onClick = onRepetir,
+                                contentPadding = paddingBotones,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            BotonReproducirTts(
+                                esFinalizado = ttsState.esFinalizado,
+                                habilitado = ttsState.etapa == EtapaLectura.INACTIVO || ttsState.etapa == EtapaLectura.FINALIZADO,
+                                onClick = onReproducir,
+                                contentPadding = paddingBotones,
+                                modifier = Modifier.weight(1.1f),
+                            )
+                            BotonSecundarioTts(
+                                texto = "Continuar",
+                                icono = Icons.AutoMirrored.Filled.ArrowForward,
+                                habilitado = ttsState.puedeContinuar,
+                                onClick = onContinuar,
+                                contentPadding = paddingBotones,
+                                modifier = Modifier.weight(1.05f),
+                            )
+                            BotonSecundarioTts(
+                                texto = "Repetir",
+                                icono = Icons.Default.Replay,
+                                habilitado = ttsState.puedeRepetir,
+                                onClick = onRepetir,
+                                contentPadding = paddingBotones,
+                                modifier = Modifier.weight(0.85f),
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun BotonReproducirTts(
+    esFinalizado: Boolean,
+    habilitado: Boolean,
+    onClick: () -> Unit,
+    contentPadding: PaddingValues,
+    modifier: Modifier = Modifier,
+) {
+    Button(
+        onClick = onClick,
+        enabled = habilitado,
+        contentPadding = contentPadding,
+        modifier = modifier,
+    ) {
+        ContenidoBotonTts(
+            icono = Icons.Default.PlayArrow,
+            texto = if (esFinalizado) "Reiniciar" else "Reproducir",
+        )
+    }
+}
+
+@Composable
+private fun BotonSecundarioTts(
+    texto: String,
+    icono: ImageVector,
+    habilitado: Boolean,
+    onClick: () -> Unit,
+    contentPadding: PaddingValues,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = habilitado,
+        contentPadding = contentPadding,
+        modifier = modifier,
+    ) {
+        ContenidoBotonTts(
+            icono = icono,
+            texto = texto,
+        )
+    }
+}
+
+@Composable
+private fun ContenidoBotonTts(
+    icono: ImageVector,
+    texto: String,
+) {
+    Icon(
+        imageVector = icono,
+        contentDescription = null,
+        modifier = Modifier.size(16.dp),
+    )
+    Spacer(modifier = Modifier.width(4.dp))
+    Text(
+        text = texto,
+        style = MaterialTheme.typography.labelMedium,
+        maxLines = 1,
+        softWrap = false,
+    )
 }
 
 @Preview(showBackground = true, showSystemUi = true)

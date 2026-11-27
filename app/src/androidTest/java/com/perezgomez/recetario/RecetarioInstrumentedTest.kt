@@ -160,18 +160,20 @@ class RecetarioInstrumentedTest {
 
         guardarCaptura("paso4_07_detalle_inicial.png")
 
-        // Iniciar reproducción con AndroidTtsEngine real
+        // Iniciar reproducción con AndroidTtsEngine real y esperar onStart de intro
         composeRule.onNodeWithText("Reproducir").performClick()
         esperarTexto("Leyendo introducción")
+        esperarTexto("Leyendo")
         composeRule.onNodeWithText("Continuar").assertIsEnabled()
         composeRule.onNodeWithText("Repetir").assertIsEnabled()
-        Thread.sleep(1000)
+        Thread.sleep(600)
         guardarCaptura("paso4_08_detalle_reproduciendo.png")
 
-        // Continuar al paso 1 de 3 y verificar resaltado del paso actual
+        // Continuar al paso 1 de 3, verificar resaltado y esperar onDone del motor real
         composeRule.onNodeWithText("Continuar").performClick()
         esperarTexto("Paso 1 de 3")
         composeRule.onNodeWithText("Leyendo este paso...").performScrollTo().assertIsDisplayed()
+        esperarTexto("En pausa", timeoutMs = 12000L)
         guardarCaptura("paso4_09_detalle_paso1.png")
 
         // Volver a la tarjeta de controles TTS para Repetir y completar pasos
@@ -186,9 +188,10 @@ class RecetarioInstrumentedTest {
         composeRule.onNodeWithText("Continuar").performScrollTo().performClick()
         esperarTexto("Paso 3 de 3")
 
-        // Finalización de lectura
+        // Finalización de lectura y espera de onDone para pasar de "Leyendo" a "Finalizada"
         composeRule.onNodeWithText("Continuar").performScrollTo().performClick()
         esperarTexto("Receta completada")
+        esperarTexto("Finalizada", timeoutMs = 12000L)
         composeRule.onNodeWithText("Finalizada").assertIsDisplayed()
         composeRule.onNodeWithText("Continuar").assertIsNotEnabled()
         composeRule.onNodeWithText("Reiniciar").assertIsEnabled()
