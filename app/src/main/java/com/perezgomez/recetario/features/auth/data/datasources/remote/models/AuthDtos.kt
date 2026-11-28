@@ -23,7 +23,24 @@ data class UsuarioDto(
 )
 
 @Serializable
+data class MigracionLikesDto(
+    val intentada: Boolean = false,
+    val completada: Boolean = true,
+    val migrados: Int = 0,
+    val deduplicados: Int = 0,
+    val bloqueadaPorOtraCuenta: Boolean = false,
+    val parcial: Boolean = false,
+)
+
+@Serializable
 data class SesionDto(
     val token: String,
     val usuario: UsuarioDto,
+    val migracionLikes: MigracionLikesDto? = null,
+)
+
+@Serializable
+data class VisitanteSesionDto(
+    val visitorId: String,
+    val visitorToken: String,
 )

@@ -5,17 +5,29 @@ import javax.inject.Singleton
 import okhttp3.Interceptor
 import okhttp3.Response
 
-/** Agrega "Authorization: Bearer <token>" a cada petición cuando hay sesión. */
+/**
+ * Prioriza "Authorization: Bearer <token>" cuando hay sesión activa.
+ * Solo si no hay JWT activo, adjunta "X-Visitor-Token" si la petición no lo especificó explícitamente.
+ */
 @Singleton
-class AuthInterceptor @Inject constructor(private val tokenProvider: TokenProvider) : Interceptor {
+class AuthInterceptor @Inject constructor(
+    private val tokenProvider: TokenProvider,
+    private val visitorTokenProvider: VisitorTokenProvider,
+) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
         val token = tokenProvider.token()
-        val request = if (token.isNullOrBlank()) {
-            original
-        } else {
-            original.newBuilder().header("Authorization", "Bearer $token").build()
+        val builder = original.newBuilder()
+
+        if (!token.isNullOrBlank()) {
+            builder.header("Authorization", "Bearer $token")
+        } else if (original.header("X-Visitor-Token") == null) {
+            val visitorToken = visitorTokenProvider.visitorTokenSync()
+            if (!visitorToken.isNullOrBlank()) {
+                builder.header("X-Visitor-Token", visitorToken)
+            }
         }
-        return chain.proceed(request)
+
+        return chain.proceed(builder.build())
     }
 }

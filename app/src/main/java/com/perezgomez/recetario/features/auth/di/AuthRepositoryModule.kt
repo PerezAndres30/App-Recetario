@@ -1,10 +1,13 @@
 package com.perezgomez.recetario.features.auth.di
 
 import com.perezgomez.recetario.core.network.TokenProvider
+import com.perezgomez.recetario.core.network.VisitorTokenProvider
 import com.perezgomez.recetario.features.auth.data.datasources.local.SharedPrefsSessionStorage
+import com.perezgomez.recetario.features.auth.data.datasources.local.SharedPrefsVisitorStorage
 import com.perezgomez.recetario.features.auth.data.repositories.AuthRepositoryImpl
 import com.perezgomez.recetario.features.auth.domain.repositories.AuthRepository
 import com.perezgomez.recetario.features.auth.domain.repositories.SessionStorage
+import com.perezgomez.recetario.features.auth.domain.repositories.VisitorStorage
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -26,6 +29,18 @@ abstract class AuthRepositoryModule {
     abstract fun bindSessionStorage(
         impl: SharedPrefsSessionStorage,
     ): SessionStorage
+
+    @Binds
+    @Singleton
+    abstract fun bindVisitorTokenProvider(
+        impl: SharedPrefsVisitorStorage,
+    ): VisitorTokenProvider
+
+    @Binds
+    @Singleton
+    abstract fun bindVisitorStorage(
+        impl: SharedPrefsVisitorStorage,
+    ): VisitorStorage
 
     @Binds
     @Singleton

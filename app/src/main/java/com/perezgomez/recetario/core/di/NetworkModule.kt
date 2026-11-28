@@ -38,6 +38,7 @@ object NetworkModule {
                 HttpLoggingInterceptor().apply {
                     level = HttpLoggingInterceptor.Level.BASIC
                     redactHeader("Authorization")
+                    redactHeader("X-Visitor-Token")
                 },
             )
             .connectTimeout(20, TimeUnit.SECONDS)

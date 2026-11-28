@@ -1,6 +1,7 @@
 package com.perezgomez.recetario.core.network
 
 import com.perezgomez.recetario.core.domain.error.AppException
+import com.perezgomez.recetario.core.domain.error.UnauthorizedException
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,21 +19,25 @@ class ApiCaller @Inject constructor(private val json: Json) {
     } catch (e: CancellationException) {
         throw e
     } catch (e: HttpException) {
-        Result.failure(AppException(mensajeHttp(e)))
+        Result.failure(crearErrorHttp(e))
     } catch (e: IOException) {
         Result.failure(AppException("No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo."))
     } catch (e: SerializationException) {
         Result.failure(AppException("El servidor respondió algo inesperado."))
     }
 
-    private fun mensajeHttp(e: HttpException): String {
+    private fun crearErrorHttp(e: HttpException): AppException {
         val cuerpo = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
         val mensajeApi = cuerpo?.let { runCatching { json.decodeFromString<ErrorDto>(it).error }.getOrNull() }
-        return mensajeApi ?: when (e.code()) {
-            401 -> "Tu sesión expiró. Inicia sesión de nuevo."
+        if (e.code() == 401) {
+            return UnauthorizedException(mensajeApi ?: "Tu sesión expiró. Inicia sesión de nuevo.")
+        }
+        val mensaje = mensajeApi ?: when (e.code()) {
             404 -> "No se encontró lo que buscabas."
+            409 -> "Conflicto temporal al procesar la solicitud. Intenta de nuevo."
             in 500..599 -> "Error del servidor. Inténtalo más tarde."
             else -> "Ocurrió un error inesperado (${e.code()})."
         }
+        return AppException(mensaje)
     }
 }
