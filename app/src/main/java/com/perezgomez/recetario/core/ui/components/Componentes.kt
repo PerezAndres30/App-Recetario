@@ -2,32 +2,30 @@ package com.perezgomez.recetario.core.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.border
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.RestaurantMenu
-import coil.compose.AsyncImage
-import java.io.File
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,11 +40,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.perezgomez.recetario.ui.theme.BordeEditorial
+import com.perezgomez.recetario.ui.theme.CremaCalida
+import com.perezgomez.recetario.ui.theme.CremaPapel
+import com.perezgomez.recetario.ui.theme.RojoCereza
+import java.io.File
 
 @Composable
 fun CampoTexto(
@@ -60,6 +69,7 @@ fun CampoTexto(
     unaLinea: Boolean = true,
     lineasMinimas: Int = 1,
     habilitado: Boolean = true,
+    textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
     trailingIcon: @Composable (() -> Unit)? = null,
 ) {
     OutlinedTextField(
@@ -72,20 +82,22 @@ fun CampoTexto(
         } else {
             null
         },
+        textStyle = textStyle,
         singleLine = unaLinea,
         minLines = lineasMinimas,
         enabled = habilitado,
         visualTransformation = if (esPassword) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = if (esPassword) KeyboardType.Password else tipoTeclado),
         trailingIcon = trailingIcon,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            focusedLabelColor = MaterialTheme.colorScheme.primary,
-            cursorColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedBorderColor = RojoCereza,
+            focusedLabelColor = RojoCereza,
+            cursorColor = RojoCereza,
+            unfocusedBorderColor = BordeEditorial,
+            focusedContainerColor = CremaPapel,
+            unfocusedContainerColor = CremaPapel.copy(alpha = 0.72f),
+            disabledContainerColor = CremaCalida.copy(alpha = 0.45f),
         ),
         modifier = modifier.fillMaxWidth(),
     )
@@ -94,7 +106,21 @@ fun CampoTexto(
 @Composable
 fun PantallaCargando(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                strokeWidth = 2.5.dp,
+                modifier = Modifier.size(34.dp),
+            )
+            Text(
+                text = "Abriendo el recetario…",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }
 
@@ -109,6 +135,7 @@ fun PantallaError(mensaje: String, onReintentar: () -> Unit, modifier: Modifier 
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.errorContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(
@@ -120,23 +147,31 @@ fun PantallaError(mensaje: String, onReintentar: () -> Unit, modifier: Modifier 
                     imageVector = Icons.Default.ErrorOutline,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(40.dp),
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = mensaje,
-                    style = MaterialTheme.typography.bodyLarge,
+                    text = "No se pudo cargar la página",
+                    style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     textAlign = TextAlign.Center,
                 )
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = mensaje,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(modifier = Modifier.height(18.dp))
                 Button(
                     onClick = onReintentar,
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(50),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     ),
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp),
                 ) {
                     Text("Reintentar")
                 }
@@ -160,14 +195,14 @@ fun ConfirmarEliminarDialog(
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.errorContainer,
-                modifier = Modifier.size(56.dp),
+                modifier = Modifier.size(52.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(26.dp),
                     )
                 }
             }
@@ -191,13 +226,12 @@ fun ConfirmarEliminarDialog(
             Button(
                 onClick = onConfirmar,
                 enabled = !cargando,
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(50),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError,
-                    disabledContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
-                    disabledContentColor = MaterialTheme.colorScheme.onError.copy(alpha = 0.8f),
                 ),
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp),
             ) {
                 Text(if (cargando) "Eliminando..." else "Eliminar")
             }
@@ -206,8 +240,9 @@ fun ConfirmarEliminarDialog(
             OutlinedButton(
                 onClick = onCancelar,
                 enabled = !cargando,
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(50),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp),
             ) {
                 Text(
                     text = "Cancelar",
@@ -219,26 +254,45 @@ fun ConfirmarEliminarDialog(
 }
 
 /**
- * Foto de una receta. [origen] puede ser una URL https (foto subida) o la ruta de un archivo local
- * (vista previa antes de subir). Si es null o está vacía muestra un ícono, nunca un espacio roto.
+ * Fotografía gastronómica protagonista.
+ * Si aún no tiene fotografía asociada, presenta un lienzo cálido minimalista con trazo fino culinario.
  */
 @Composable
 fun ImagenReceta(
     origen: String?,
     descripcion: String?,
     modifier: Modifier = Modifier,
+    cornerRadius: RoundedCornerShape = RoundedCornerShape(14.dp),
 ) {
-    val forma = RoundedCornerShape(16.dp)
     Box(
-        modifier = modifier.clip(forma).background(MaterialTheme.colorScheme.surfaceVariant),
+        modifier = modifier
+            .clip(cornerRadius)
+            .background(CremaCalida),
         contentAlignment = Alignment.Center,
     ) {
         if (origen.isNullOrBlank()) {
-            Icon(
-                imageVector = Icons.Filled.RestaurantMenu,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(1.dp, BordeEditorial, cornerRadius),
+                contentAlignment = Alignment.Center,
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = CremaPapel,
+                    border = BorderStroke(1.dp, BordeEditorial),
+                    modifier = Modifier.size(54.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.RestaurantMenu,
+                            contentDescription = null,
+                            tint = RojoCereza,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+            }
         } else {
             AsyncImage(
                 model = if (origen.startsWith("/")) File(origen) else origen,
@@ -250,7 +304,10 @@ fun ImagenReceta(
     }
 }
 
-/** Sección del formulario para tomar, elegir o quitar la foto de la receta. */
+/**
+ * Cabecera fotográfica editorial del recetario para seleccionar foto de cámara o galería,
+ * integrada directamente en la página sin aspecto de caja administrativa.
+ */
 @Composable
 fun SeccionFoto(
     vistaPrevia: String?,
@@ -261,52 +318,124 @@ fun SeccionFoto(
     onQuitarFoto: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = "FOTO (OPCIONAL)",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Box(contentAlignment = Alignment.Center) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (vistaPrevia != null) Modifier.aspectRatio(16f / 10f) else Modifier.height(150.dp),
+                )
+                .clip(RoundedCornerShape(18.dp))
+                .background(CremaCalida)
+                .border(1.dp, BordeEditorial, RoundedCornerShape(18.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
             if (vistaPrevia != null) {
                 ImagenReceta(
                     origen = vistaPrevia,
                     descripcion = "Foto de la receta",
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                    cornerRadius = RoundedCornerShape(18.dp),
+                    modifier = Modifier.fillMaxSize(),
                 )
             } else {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
-                    verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(18.dp),
                 ) {
-                    Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Sin foto", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Surface(
+                        shape = CircleShape,
+                        color = CremaPapel,
+                        border = BorderStroke(1.dp, BordeEditorial),
+                        modifier = Modifier.size(56.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Filled.AddPhotoAlternate,
+                                contentDescription = null,
+                                tint = RojoCereza,
+                                modifier = Modifier.size(26.dp),
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Fotografía de portada (opcional)",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "Toma una foto recién servida o elige una de tu galería",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
-            if (procesando) CircularProgressIndicator()
+            if (procesando) CircularProgressIndicator(color = RojoCereza)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onTomarFoto, enabled = habilitado, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedButton(
+                onClick = onTomarFoto,
+                enabled = habilitado,
+                shape = RoundedCornerShape(50),
+                border = BorderStroke(1.dp, RojoCereza),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = CremaPapel,
+                    contentColor = RojoCereza,
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minHeight = 48.dp),
+            ) {
+                Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.size(6.dp))
-                Text("Cámara")
+                Text("Cámara", maxLines = 1, softWrap = false)
             }
-            OutlinedButton(onClick = onElegirDeGaleria, enabled = habilitado, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
+            OutlinedButton(
+                onClick = onElegirDeGaleria,
+                enabled = habilitado,
+                shape = RoundedCornerShape(50),
+                border = BorderStroke(1.dp, RojoCereza),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = CremaPapel,
+                    contentColor = RojoCereza,
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minHeight = 48.dp),
+            ) {
+                Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.size(6.dp))
-                Text("Galería")
+                Text("Galería", maxLines = 1, softWrap = false)
             }
         }
+
         if (vistaPrevia != null) {
-            OutlinedButton(onClick = onQuitarFoto, enabled = habilitado, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+            OutlinedButton(
+                onClick = onQuitarFoto,
+                enabled = habilitado,
+                shape = RoundedCornerShape(50),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.45f)),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Transparent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(17.dp),
+                )
                 Spacer(Modifier.size(6.dp))
-                Text("Quitar foto")
+                Text("Quitar foto", color = MaterialTheme.colorScheme.error)
             }
         }
     }

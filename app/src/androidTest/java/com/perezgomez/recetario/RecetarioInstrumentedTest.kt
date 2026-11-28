@@ -5,7 +5,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -254,5 +256,60 @@ class RecetarioInstrumentedTest {
         esperarTexto("Receta eliminada")
         esperarTexto("Mis recetas")
         composeRule.onNodeWithText("Flan de Vainilla").assertDoesNotExist()
+    }
+
+    @Test
+    fun test05_likesYFavoritos_visitanteYRegistrado_sincronizacionYCierreSesion() {
+        // 1) Visitante: da like en Explorar y verifica en Detalle sin acceso a Favoritos
+        authRepository.establecerSesion(null)
+        iniciarActividad()
+
+        esperarTexto("Explorar como visitante")
+        composeRule.onNodeWithText("Explorar como visitante").performClick()
+
+        esperarTexto("Mole Poblano Comunitario")
+        composeRule.onNodeWithContentDescription("Guardar en favoritos").assertDoesNotExist()
+
+        composeRule.onAllNodesWithContentDescription("Dar me gusta, 0 me gusta").onFirst().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription("Quitar me gusta, 1 me gusta").assertIsDisplayed()
+        guardarCaptura("etapa3_01_visitante_like_explorar.png")
+
+        // 2) Iniciar sesión y guardar receta ajena en Favoritos
+        composeRule.onNodeWithText("Iniciar sesión").performClick()
+        esperarTexto("Bienvenido de vuelta")
+        composeRule.onNodeWithText("Correo").performTextInput("carlos@test.com")
+        composeRule.onNodeWithText("Contraseña").performTextInput("Password123")
+        composeRule.onNodeWithText("Iniciar sesión").performScrollTo().performClick()
+
+        esperarTexto("Mis recetas")
+        composeRule.onNodeWithText("Explorar").performClick()
+        esperarTexto("Mole Poblano Comunitario")
+
+        composeRule.onAllNodesWithContentDescription("Guardar en favoritos").onFirst().performClick()
+        composeRule.waitForIdle()
+
+        // 3) Abrir pestaña Favoritos y verificar receta guardada con estado real
+        composeRule.onNodeWithText("Favoritos").performClick()
+        esperarTexto("Colección guardada")
+        esperarTexto("Mole Poblano Comunitario")
+        guardarCaptura("etapa3_02_favoritos_con_recetas.png")
+
+        // 4) Abrir detalle desde Favoritos y verificar sincronización de Like + Favorito + TTS
+        composeRule.onNodeWithText("Mole Poblano Comunitario").performClick()
+        esperarTexto("1 me gusta")
+        composeRule.onNodeWithText("Guardada").assertIsDisplayed()
+        guardarCaptura("etapa3_03_detalle_sincronizado.png")
+
+        composeRule.onNodeWithContentDescription("Volver").performClick()
+        esperarTexto("Mole Poblano Comunitario")
+
+        // 5) Quitar de Favoritos -> pasa a estado vacío real y cerrar sesión vuelve a Bienvenida
+        composeRule.onNodeWithContentDescription("Quitar de favoritos").performClick()
+        esperarTexto("Aún no tienes recetas en Favoritos")
+        guardarCaptura("etapa3_04_favoritos_vacio.png")
+
+        composeRule.onNodeWithContentDescription("Cerrar sesión").performClick()
+        esperarTexto("Explorar como visitante")
     }
 }

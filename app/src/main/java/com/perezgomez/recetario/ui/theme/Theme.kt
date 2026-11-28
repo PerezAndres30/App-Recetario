@@ -5,48 +5,59 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 
 private val LightColorScheme = lightColorScheme(
-    primary = VerdeBosque,
-    onPrimary = Blanco,
-    primaryContainer = VerdeSalvia,
-    onPrimaryContainer = VerdeBosqueOscuro,
-    secondary = MelocotonOscuro,
-    onSecondary = Blanco,
-    secondaryContainer = Melocoton,
-    onSecondaryContainer = GrisTextoPrincipal,
-    tertiary = VerdeBosqueOscuro,
-    onTertiary = Blanco,
-    background = FondoArena,
-    onBackground = GrisTextoPrincipal,
-    surface = Blanco,
-    onSurface = GrisTextoPrincipal,
-    surfaceVariant = FondoArena,
-    onSurfaceVariant = GrisTextoSecundario,
-    outline = GrisBorde,
-    outlineVariant = VerdeSalviaBorde,
-    error = RojoAlerta,
-    onError = Blanco,
-    errorContainer = RosaAlerta,
-    onErrorContainer = RojoAlerta,
+    primary = RojoCereza,
+    onPrimary = CremaVainilla,
+    primaryContainer = RosaFresa,
+    onPrimaryContainer = RojoCerezaOscuro,
+    secondary = Durazno,
+    onSecondary = TextoPrincipal,
+    secondaryContainer = AmarilloMantequilla,
+    onSecondaryContainer = TextoPrincipal,
+    tertiary = AzulTinta,
+    onTertiary = CremaVainilla,
+    tertiaryContainer = AzulPastel,
+    onTertiaryContainer = AzulTinta,
+    background = CremaVainilla,
+    onBackground = TextoPrincipal,
+    surface = CremaPapel,
+    onSurface = TextoPrincipal,
+    surfaceVariant = CremaCalida,
+    onSurfaceVariant = TextoSecundario,
+    outline = BordeEditorial,
+    outlineVariant = BordeRosa,
+    error = RojoError,
+    onError = CremaPapel,
+    errorContainer = RosaErrorFondo,
+    onErrorContainer = RojoError,
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = VerdeSalvia,
-    onPrimary = VerdeBosqueOscuro,
-    primaryContainer = VerdeBosque,
-    onPrimaryContainer = Blanco,
-    secondary = Melocoton,
-    onSecondary = GrisTextoPrincipal,
-    background = GrisTextoPrincipal,
-    onBackground = FondoArena,
-    surface = Color(0xFF262A27),
-    onSurface = FondoArena,
-    error = RojoAlerta,
-    onError = Blanco,
-    errorContainer = RosaAlerta,
-    onErrorContainer = RojoAlerta,
+    primary = RosaFresa,
+    onPrimary = RojoCerezaOscuro,
+    primaryContainer = RojoCereza,
+    onPrimaryContainer = CremaVainilla,
+    secondary = Durazno,
+    onSecondary = TextoPrincipal,
+    secondaryContainer = CacaoVariante,
+    onSecondaryContainer = AmarilloMantequilla,
+    tertiary = AzulPastel,
+    onTertiary = AzulTinta,
+    tertiaryContainer = AzulTinta,
+    onTertiaryContainer = AzulPastelSuave,
+    background = CacaoFondo,
+    onBackground = CremaVainilla,
+    surface = CacaoSuperficie,
+    onSurface = CremaVainilla,
+    surfaceVariant = CacaoVariante,
+    onSurfaceVariant = RosaFresaSuave,
+    outline = CacaoVariante,
+    outlineVariant = RojoCereza,
+    error = RosaFresa,
+    onError = RojoCerezaOscuro,
+    errorContainer = RojoCerezaOscuro,
+    onErrorContainer = RosaFresaSuave,
 )
 
 @Composable
@@ -54,13 +65,13 @@ fun RecetarioTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    // Se utiliza la paleta personalizada de Figma y se evitan colores dinámicos
-    // para preservar la identidad visual de la aplicación.
+    // Paleta editorial gastronómica fija para preservar la identidad visual del recetario.
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,
         typography = RecetarioTypography,
+        shapes = RecetarioShapes,
         content = content,
     )
 }

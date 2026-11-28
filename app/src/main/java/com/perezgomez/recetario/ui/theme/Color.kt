@@ -2,21 +2,37 @@ package com.perezgomez.recetario.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Paleta de identidad visual Figma · App Recetario
-val VerdeBosque = Color(0xFF1E5641)
-val VerdeBosqueOscuro = Color(0xFF143B2C)
-val VerdeSalvia = Color(0xFFE8F5E9)
-val VerdeSalviaBorde = Color(0xFFD3E4DA)
+// Paleta editorial gastronómica · App Recetario
+val CremaVainilla = Color(0xFFFFF8E9)
+val CremaPapel = Color(0xFFFFFDF7)
+val CremaCalida = Color(0xFFFDF0D5)
 
-val FondoArena = Color(0xFFFBF9F4)
-val Blanco = Color(0xFFFFFFFF)
+val RosaFresa = Color(0xFFF8B9CB)
+val RosaFresaSuave = Color(0xFFFCE2EA)
 
-val Melocoton = Color(0xFFFFE8D6)
-val MelocotonOscuro = Color(0xFFD87D4A)
+val RojoCereza = Color(0xFF92233F)
+val RojoCerezaOscuro = Color(0xFF6B152B)
+val RojoCerezaSuave = Color(0xFFF7D9E2)
 
-val RosaAlerta = Color(0xFFFCEAE8)
-val RojoAlerta = Color(0xFFD9383A)
+val Durazno = Color(0xFFFFAA76)
+val DuraznoSuave = Color(0xFFFFE5D4)
 
-val GrisTextoPrincipal = Color(0xFF1C1D1B)
-val GrisTextoSecundario = Color(0xFF5A605A)
-val GrisBorde = Color(0xFFD2D9D4)
+val AmarilloMantequilla = Color(0xFFF9D779)
+val AmarilloSuave = Color(0xFFFFF1C7)
+
+val AzulPastel = Color(0xFFA9C4DE)
+val AzulPastelSuave = Color(0xFFDCE8F4)
+val AzulTinta = Color(0xFF23405C)
+
+val TextoPrincipal = Color(0xFF302328)
+val TextoSecundario = Color(0xFF68555C)
+val BordeEditorial = Color(0xFFE7D6C4)
+val BordeRosa = Color(0xFFEFC4D1)
+
+val RojoError = Color(0xFFB3261E)
+val RosaErrorFondo = Color(0xFFFBE9E7)
+
+// Superficies para tema oscuro cálido cacao
+val CacaoFondo = Color(0xFF21171B)
+val CacaoSuperficie = Color(0xFF2D2025)
+val CacaoVariante = Color(0xFF3A2A30)

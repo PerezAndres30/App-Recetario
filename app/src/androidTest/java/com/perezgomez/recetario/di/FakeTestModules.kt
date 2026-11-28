@@ -1,15 +1,19 @@
 package com.perezgomez.recetario.di
 
 import com.perezgomez.recetario.core.network.TokenProvider
+import com.perezgomez.recetario.core.network.VisitorTokenProvider
 import com.perezgomez.recetario.features.auth.di.AuthRepositoryModule
 import com.perezgomez.recetario.features.auth.domain.entities.Usuario
 import com.perezgomez.recetario.features.auth.domain.repositories.AuthRepository
 import com.perezgomez.recetario.features.auth.domain.repositories.SessionStorage
+import com.perezgomez.recetario.features.auth.domain.repositories.VisitorStorage
 import com.perezgomez.recetario.features.recetas.di.RecetasRepositoryModule
 import com.perezgomez.recetario.features.recetas.domain.entities.CambioImagen
+import com.perezgomez.recetario.features.recetas.domain.entities.EventoSocialReceta
 import com.perezgomez.recetario.features.recetas.domain.entities.ImagenSubida
 import com.perezgomez.recetario.features.recetas.domain.entities.Ingrediente
 import com.perezgomez.recetario.features.recetas.domain.entities.Receta
+import com.perezgomez.recetario.features.recetas.domain.entities.ResultadoLike
 import com.perezgomez.recetario.features.recetas.domain.imagen.ImagenLista
 import com.perezgomez.recetario.features.recetas.domain.imagen.ProcesadorImagen
 import com.perezgomez.recetario.features.recetas.domain.repositories.ImagenRepository
@@ -22,6 +26,9 @@ import dagger.hilt.components.SingletonComponent
 import dagger.hilt.testing.TestInstallIn
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * Repositorios simulados exclusivamente para pruebas instrumentadas en src/androidTest.
@@ -46,6 +53,22 @@ class InMemorySessionStorage @Inject constructor() : SessionStorage {
         tokenActual = null
         usuarioActual = null
     }
+}
+
+@Singleton
+class InMemoryVisitorStorage @Inject constructor() : VisitorStorage {
+    var activeToken: String? = "visitor-test.firma"
+    override fun guardarIdentidadVisitante(visitorId: String, visitorToken: String) {
+        activeToken = visitorToken
+    }
+    override fun visitorTokenSync(): String? = activeToken
+    override fun visitorIdSync(): String? = "visitor-test"
+    override fun tokenParaLogin(correo: String): String? = activeToken
+    override fun tokenParaRegistro(): String? = activeToken
+    override fun registrarMigracionPendiente(userId: String, correo: String, token: String) = Unit
+    override fun completarORetirarTokenUsado(tokenUsado: String, userId: String?, limpiarPendienteDeCuenta: Boolean) = Unit
+    override fun rotarIdentidadVisitante() { activeToken = "visitor-rotated.firma" }
+    override fun hayMigracionPendiente(): Boolean = false
 }
 
 @Singleton
@@ -84,6 +107,8 @@ class FakeAndroidAuthRepository @Inject constructor(
 class FakeAndroidRecetaRepository @Inject constructor() : RecetaRepository {
 
     val recetas = mutableListOf<Receta>()
+    private val _eventosSociales = MutableSharedFlow<EventoSocialReceta>(extraBufferCapacity = 32)
+    override val eventosSociales: Flow<EventoSocialReceta> = _eventosSociales.asSharedFlow()
     private var contadorId = 100
 
     fun reiniciarDatosDePrueba() {
@@ -186,7 +211,49 @@ class FakeAndroidRecetaRepository @Inject constructor() : RecetaRepository {
 
     override suspend fun eliminar(id: String): Result<Unit> {
         recetas.removeAll { it.id == id }
+        _eventosSociales.tryEmit(EventoSocialReceta.RecetaEliminada(id))
         return Result.success(Unit)
+    }
+
+    override suspend fun listarFavoritos(): Result<List<Receta>> =
+        Result.success(recetas.filter { it.esFavorito })
+
+    override suspend fun darLike(recetaId: String): Result<ResultadoLike> {
+        val i = recetas.indexOfFirst { it.id == recetaId }
+        if (i < 0) return Result.failure(IllegalStateException("Receta no encontrada"))
+        val actual = recetas[i]
+        val actualizada = if (actual.leDiLike) actual else actual.copy(likesCount = actual.likesCount + 1, leDiLike = true)
+        recetas[i] = actualizada
+        val res = ResultadoLike(recetaId, actualizada.likesCount, actualizada.leDiLike)
+        _eventosSociales.tryEmit(EventoSocialReceta.LikeActualizado(recetaId, res.likesCount, res.leDiLike))
+        return Result.success(res)
+    }
+
+    override suspend fun quitarLike(recetaId: String): Result<ResultadoLike> {
+        val i = recetas.indexOfFirst { it.id == recetaId }
+        if (i < 0) return Result.failure(IllegalStateException("Receta no encontrada"))
+        val actual = recetas[i]
+        val actualizada = if (!actual.leDiLike) actual else actual.copy(likesCount = (actual.likesCount - 1).coerceAtLeast(0), leDiLike = false)
+        recetas[i] = actualizada
+        val res = ResultadoLike(recetaId, actualizada.likesCount, actualizada.leDiLike)
+        _eventosSociales.tryEmit(EventoSocialReceta.LikeActualizado(recetaId, res.likesCount, res.leDiLike))
+        return Result.success(res)
+    }
+
+    override suspend fun guardarFavorito(recetaId: String): Result<Boolean> {
+        val i = recetas.indexOfFirst { it.id == recetaId }
+        if (i < 0) return Result.failure(IllegalStateException("Receta no encontrada"))
+        recetas[i] = recetas[i].copy(esFavorito = true)
+        _eventosSociales.tryEmit(EventoSocialReceta.FavoritoActualizado(recetaId, true))
+        return Result.success(true)
+    }
+
+    override suspend fun quitarFavorito(recetaId: String): Result<Boolean> {
+        val i = recetas.indexOfFirst { it.id == recetaId }
+        if (i < 0) return Result.failure(IllegalStateException("Receta no encontrada"))
+        recetas[i] = recetas[i].copy(esFavorito = false)
+        _eventosSociales.tryEmit(EventoSocialReceta.FavoritoActualizado(recetaId, false))
+        return Result.success(false)
     }
 }
 
@@ -223,6 +290,14 @@ abstract class FakeTestRepositoriesModule {
     @Binds
     @Singleton
     abstract fun bindSessionStorage(impl: InMemorySessionStorage): SessionStorage
+
+    @Binds
+    @Singleton
+    abstract fun bindVisitorTokenProvider(impl: InMemoryVisitorStorage): VisitorTokenProvider
+
+    @Binds
+    @Singleton
+    abstract fun bindVisitorStorage(impl: InMemoryVisitorStorage): VisitorStorage
 
     @Binds
     @Singleton
