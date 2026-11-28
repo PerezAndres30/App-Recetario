@@ -1,14 +1,25 @@
 package com.perezgomez.recetario.features.recetas.data.repositories
 
 import com.perezgomez.recetario.core.network.ApiCaller
+import com.perezgomez.recetario.features.auth.data.datasources.remote.api.AuthApiService
+import com.perezgomez.recetario.features.auth.data.datasources.remote.models.LoginRequestDto
+import com.perezgomez.recetario.features.auth.data.datasources.remote.models.RegistroRequestDto
+import com.perezgomez.recetario.features.auth.data.datasources.remote.models.SesionDto
+import com.perezgomez.recetario.features.auth.data.datasources.remote.models.UsuarioDto
+import com.perezgomez.recetario.features.auth.data.datasources.remote.models.VisitanteSesionDto
+import com.perezgomez.recetario.features.auth.data.repositories.VisitorIdentityManager
 import com.perezgomez.recetario.features.recetas.data.datasources.remote.api.RecetaApiService
 import com.perezgomez.recetario.features.recetas.data.datasources.remote.mapper.toRequestDto
+import com.perezgomez.recetario.features.recetas.data.datasources.remote.models.FavoritoRespuestaDto
 import com.perezgomez.recetario.features.recetas.data.datasources.remote.models.FirmaImagenDto
+import com.perezgomez.recetario.features.recetas.data.datasources.remote.models.LikeRespuestaDto
 import com.perezgomez.recetario.features.recetas.data.datasources.remote.models.RecetaDto
 import com.perezgomez.recetario.features.recetas.data.datasources.remote.models.RecetaRequestDto
 import com.perezgomez.recetario.features.recetas.data.datasources.remote.models.RecetasResponseDto
 import com.perezgomez.recetario.features.recetas.domain.entities.CambioImagen
 import com.perezgomez.recetario.features.recetas.domain.entities.Receta
+import com.perezgomez.recetario.util.FakeSessionStorage
+import com.perezgomez.recetario.util.FakeVisitorStorage
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -25,6 +36,8 @@ class RecetaRepositoryImplTest {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private lateinit var fakeApi: FakeRecetaApiService
+    private lateinit var sessionStorage: FakeSessionStorage
+    private lateinit var visitorStorage: FakeVisitorStorage
     private lateinit var repository: RecetaRepositoryImpl
 
     private val receta = Receta(
@@ -40,7 +53,11 @@ class RecetaRepositoryImplTest {
     @Before
     fun setUp() {
         fakeApi = FakeRecetaApiService()
-        repository = RecetaRepositoryImpl(fakeApi, ApiCaller(json))
+        sessionStorage = FakeSessionStorage()
+        visitorStorage = FakeVisitorStorage()
+        val apiCaller = ApiCaller(json)
+        val visitorManager = VisitorIdentityManager(FakeAuthApiService(), visitorStorage, apiCaller)
+        repository = RecetaRepositoryImpl(fakeApi, sessionStorage, visitorManager, apiCaller)
     }
 
     private fun dto(id: String, esPropia: Boolean, imagenUrl: String? = null) = RecetaDto(
@@ -154,5 +171,40 @@ class RecetaRepositoryImplTest {
         override suspend fun eliminar(id: String) {
             recetas.removeAll { it.recetaId == id }
         }
+
+        override suspend fun darLike(id: String): LikeRespuestaDto =
+            LikeRespuestaDto(recetaId = id, likesCount = 1, leDiLike = true)
+
+        override suspend fun quitarLike(id: String): LikeRespuestaDto =
+            LikeRespuestaDto(recetaId = id, likesCount = 0, leDiLike = false)
+
+        override suspend fun listarFavoritos(): RecetasResponseDto =
+            RecetasResponseDto(recetas = recetas.filter { it.esFavorito })
+
+        override suspend fun guardarFavorito(id: String): FavoritoRespuestaDto =
+            FavoritoRespuestaDto(recetaId = id, esFavorito = true)
+
+        override suspend fun quitarFavorito(id: String): FavoritoRespuestaDto =
+            FavoritoRespuestaDto(recetaId = id, esFavorito = false)
+    }
+
+    private class FakeAuthApiService : AuthApiService {
+        override suspend fun crearSesionVisitante() =
+            VisitanteSesionDto(visitorId = "v-1", visitorToken = "v-1.sig")
+
+        override suspend fun registrar(body: RegistroRequestDto, visitorToken: String?) =
+            SesionDto("t", UsuarioDto("u", body.nombre, body.correo))
+
+        override suspend fun iniciarSesion(body: LoginRequestDto, visitorToken: String?) =
+            SesionDto("t", UsuarioDto("u", "Chef", body.correo))
+    }
+
+    @Test
+    fun toRequestDto_sinFavorita_omiteCampoParaNoSobrescribirHistorico() {
+        val obj = json.encodeToJsonElement(
+            RecetaRequestDto.serializer(),
+            receta.copy(favorita = true).toRequestDto(incluirFavorita = false),
+        ).jsonObject
+        assertFalse(obj.containsKey("favorita"))
     }
 }

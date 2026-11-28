@@ -1,11 +1,13 @@
 package com.perezgomez.recetario.features.recetas.data.datasources.remote.mapper
 
 import com.perezgomez.recetario.features.recetas.data.datasources.remote.models.IngredienteDto
+import com.perezgomez.recetario.features.recetas.data.datasources.remote.models.LikeRespuestaDto
 import com.perezgomez.recetario.features.recetas.data.datasources.remote.models.RecetaDto
 import com.perezgomez.recetario.features.recetas.data.datasources.remote.models.RecetaRequestDto
 import com.perezgomez.recetario.features.recetas.domain.entities.CambioImagen
 import com.perezgomez.recetario.features.recetas.domain.entities.Ingrediente
 import com.perezgomez.recetario.features.recetas.domain.entities.Receta
+import com.perezgomez.recetario.features.recetas.domain.entities.ResultadoLike
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -29,11 +31,23 @@ fun RecetaDto.toDomain() = Receta(
     esPropia = esPropia,
     imagenUrl = imagenUrl,
     imagenPublicId = imagenPublicId,
+    likesCount = likesCount.coerceAtLeast(0),
+    leDiLike = leDiLike,
+    esFavorito = esFavorito,
 )
 
 fun List<RecetaDto>.toDomainList(): List<Receta> = map { it.toDomain() }
 
-fun Receta.toRequestDto(imagen: CambioImagen = CambioImagen.Mantener) = RecetaRequestDto(
+fun LikeRespuestaDto.toDomain() = ResultadoLike(
+    recetaId = recetaId,
+    likesCount = likesCount.coerceAtLeast(0),
+    leDiLike = leDiLike,
+)
+
+fun Receta.toRequestDto(
+    imagen: CambioImagen = CambioImagen.Mantener,
+    incluirFavorita: Boolean = true,
+) = RecetaRequestDto(
     titulo = titulo.trim(),
     descripcion = descripcion.trim(),
     categoria = categoria,
@@ -41,7 +55,7 @@ fun Receta.toRequestDto(imagen: CambioImagen = CambioImagen.Mantener) = RecetaRe
     porciones = porciones,
     ingredientes = ingredientes.map { it.toDto() },
     pasos = pasos.map { it.trim() },
-    favorita = favorita,
+    favorita = if (incluirFavorita) favorita else null,
     imagenUrl = when (imagen) {
         CambioImagen.Mantener -> null
         CambioImagen.Quitar -> JsonNull

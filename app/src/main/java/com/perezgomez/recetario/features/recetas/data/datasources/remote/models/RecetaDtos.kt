@@ -12,7 +12,7 @@ data class IngredienteDto(
     val unidad: String = "",
 )
 
-/** Lo que devuelve la API. */
+/** Lo que devuelve la API (con valores predeterminados compatibles con respuestas históricas). */
 @Serializable
 data class RecetaDto(
     val recetaId: String,
@@ -29,6 +29,9 @@ data class RecetaDto(
     val esPropia: Boolean = false,
     val imagenUrl: String? = null,
     val imagenPublicId: String? = null,
+    val likesCount: Int = 0,
+    val leDiLike: Boolean = false,
+    val esFavorito: Boolean = false,
 )
 
 /**
@@ -36,7 +39,7 @@ data class RecetaDto(
  *
  * [imagenUrl] e [imagenPublicId] tienen tres estados, y la API los distingue:
  * null (campo omitido) = conservar la foto; JsonNull = quitarla; texto = establecerla.
- * Por eso son JsonElement y NO se serializan cuando valen null de Kotlin.
+ * [favorita] se omite en PUT para preservar cualquier valor heredado sin sobrescribirlo.
  */
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
@@ -48,9 +51,22 @@ data class RecetaRequestDto(
     val porciones: Int,
     val ingredientes: List<IngredienteDto>,
     val pasos: List<String>,
-    val favorita: Boolean,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val favorita: Boolean? = null,
     @EncodeDefault(EncodeDefault.Mode.NEVER) val imagenUrl: JsonElement? = null,
     @EncodeDefault(EncodeDefault.Mode.NEVER) val imagenPublicId: JsonElement? = null,
+)
+
+@Serializable
+data class LikeRespuestaDto(
+    val recetaId: String,
+    val likesCount: Int,
+    val leDiLike: Boolean,
+)
+
+@Serializable
+data class FavoritoRespuestaDto(
+    val recetaId: String,
+    val esFavorito: Boolean,
 )
 
 /** Respuesta de POST /recetas/{id}/imagen-firma: todo lo necesario para subir a Cloudinary. */

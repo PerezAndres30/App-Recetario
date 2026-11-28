@@ -23,7 +23,32 @@ data class Receta(
     /** URL https de la foto en Cloudinary; null si la receta no tiene foto. */
     val imagenUrl: String? = null,
     val imagenPublicId: String? = null,
+    val likesCount: Int = 0,
+    val leDiLike: Boolean = false,
+    val esFavorito: Boolean = false,
 )
+
+data class ResultadoLike(
+    val recetaId: String,
+    val likesCount: Int,
+    val leDiLike: Boolean,
+)
+
+/** Eventos sociales confirmados por el servidor para sincronizar Explorar, Mis recetas, Detalle y Favoritos. */
+sealed interface EventoSocialReceta {
+    data class LikeActualizado(
+        val recetaId: String,
+        val likesCount: Int,
+        val leDiLike: Boolean,
+    ) : EventoSocialReceta
+
+    data class FavoritoActualizado(
+        val recetaId: String,
+        val esFavorito: Boolean,
+    ) : EventoSocialReceta
+
+    data class RecetaEliminada(val recetaId: String) : EventoSocialReceta
+}
 
 /** Qué hacer con la foto de una receta al guardarla. */
 sealed interface CambioImagen {
