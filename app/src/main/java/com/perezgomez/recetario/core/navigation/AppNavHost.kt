@@ -19,10 +19,12 @@ import com.perezgomez.recetario.features.auth.presentation.screens.RegisterScree
 import com.perezgomez.recetario.features.auth.presentation.viewmodels.LoginViewModel
 import com.perezgomez.recetario.features.auth.presentation.viewmodels.RegisterViewModel
 import com.perezgomez.recetario.features.recetas.presentation.screens.DetalleScreen
+import com.perezgomez.recetario.features.recetas.presentation.screens.FavoritosScreen
 import com.perezgomez.recetario.features.recetas.presentation.screens.FormScreen
 import com.perezgomez.recetario.features.recetas.presentation.screens.HomeScreen
 import com.perezgomez.recetario.features.recetas.presentation.screens.ModoHome
 import com.perezgomez.recetario.features.recetas.presentation.viewmodels.DetalleViewModel
+import com.perezgomez.recetario.features.recetas.presentation.viewmodels.FavoritosViewModel
 import com.perezgomez.recetario.features.recetas.presentation.viewmodels.FormViewModel
 import com.perezgomez.recetario.features.recetas.presentation.viewmodels.HomeViewModel
 
@@ -76,7 +78,9 @@ fun AppNavHost(
                     }
                 },
                 onVerDetalle = { id -> navController.navigate(Rutas.detalle(id)) },
-                onIrAMisRecetas = { navController.navigate(Rutas.HOME) },
+                onIrAExplorar = {},
+                onIrAMisRecetas = { navController.irAPestanaPrincipal(Rutas.HOME) },
+                onIrAFavoritos = { navController.irAPestanaPrincipal(Rutas.FAVORITOS) },
                 onIniciarSesion = { navController.navigate(Rutas.LOGIN) },
                 onSesionCerrada = { navController.irABienvenidaLimpiandoPila() },
             )
@@ -97,9 +101,31 @@ fun AppNavHost(
                     onMensajeNavMostrado = { entry.savedStateHandle.set<String>(Rutas.MENSAJE_NAV, null) },
                     onNuevaReceta = { navController.navigate(Rutas.formulario()) },
                     onVerDetalle = { id -> navController.navigate(Rutas.detalle(id)) },
-                    onIrAExplorar = { navController.navigate(Rutas.EXPLORAR) },
+                    onIrAExplorar = { navController.irAPestanaPrincipal(Rutas.EXPLORAR) },
+                    onIrAMisRecetas = {},
+                    onIrAFavoritos = { navController.irAPestanaPrincipal(Rutas.FAVORITOS) },
                     onIniciarSesion = { navController.navigate(Rutas.LOGIN) },
                     onSesionCerrada = { navController.irABienvenidaLimpiandoPila() },
+                )
+            }
+        }
+
+        // Favoritos: exclusivo para usuarios autenticados
+        composable(Rutas.FAVORITOS) {
+            if (!authRepository.haySesion()) {
+                LaunchedEffect(Unit) {
+                    navController.navigate(Rutas.LOGIN) {
+                        popUpTo(Rutas.FAVORITOS) { inclusive = true }
+                    }
+                }
+            } else {
+                FavoritosScreen(
+                    viewModel = hiltViewModel<FavoritosViewModel>(),
+                    onIrAExplorar = { navController.irAPestanaPrincipal(Rutas.EXPLORAR) },
+                    onIrAMisRecetas = { navController.irAPestanaPrincipal(Rutas.HOME) },
+                    onVerDetalle = { id -> navController.navigate(Rutas.detalle(id)) },
+                    onSesionCerrada = { navController.irABienvenidaLimpiandoPila() },
+                    onSesionExpirada = { navController.navigate(Rutas.LOGIN) { popUpTo(Rutas.FAVORITOS) { inclusive = true } } },
                 )
             }
         }
@@ -122,6 +148,7 @@ fun AppNavHost(
                     }
                 },
                 onEliminada = { navController.volverConMensaje("Receta eliminada") },
+                estaAutenticado = authRepository.haySesion(),
             )
         }
 
@@ -157,6 +184,12 @@ fun AppNavHost(
 @Composable
 private fun NavBackStackEntry.mensajeNavegacion() =
     savedStateHandle.getStateFlow<String?>(Rutas.MENSAJE_NAV, null).collectAsStateWithLifecycle()
+
+private fun NavHostController.irAPestanaPrincipal(ruta: String) {
+    navigate(ruta) {
+        launchSingleTop = true
+    }
+}
 
 private fun NavHostController.irAHomeLimpiandoPila() {
     navigate(Rutas.HOME) {

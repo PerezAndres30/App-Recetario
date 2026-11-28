@@ -1,13 +1,18 @@
 package com.perezgomez.recetario.util
 
+import com.perezgomez.recetario.core.domain.error.AppException
+import com.perezgomez.recetario.core.domain.error.UnauthorizedException
 import com.perezgomez.recetario.core.hardware.tts.domain.TtsEngine
 import com.perezgomez.recetario.core.hardware.tts.domain.TtsEventListener
 import com.perezgomez.recetario.features.auth.domain.entities.Usuario
 import com.perezgomez.recetario.features.auth.domain.repositories.AuthRepository
 import com.perezgomez.recetario.features.auth.domain.repositories.SessionStorage
+import com.perezgomez.recetario.features.auth.domain.repositories.VisitorStorage
 import com.perezgomez.recetario.features.recetas.domain.entities.CambioImagen
+import com.perezgomez.recetario.features.recetas.domain.entities.EventoSocialReceta
 import com.perezgomez.recetario.features.recetas.domain.entities.ImagenSubida
 import com.perezgomez.recetario.features.recetas.domain.entities.Receta
+import com.perezgomez.recetario.features.recetas.domain.entities.ResultadoLike
 import com.perezgomez.recetario.features.recetas.domain.imagen.ImagenLista
 import com.perezgomez.recetario.features.recetas.domain.imagen.ProcesadorImagen
 import com.perezgomez.recetario.features.recetas.domain.repositories.ImagenRepository
@@ -15,35 +20,52 @@ import com.perezgomez.recetario.features.recetas.domain.repositories.RecetaRepos
 import com.perezgomez.recetario.features.recetas.domain.tts.EstadoLectura
 import com.perezgomez.recetario.features.recetas.domain.tts.EtapaLectura
 import com.perezgomez.recetario.features.recetas.domain.tts.RecetaTtsService
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 class FakeRecetaRepository : RecetaRepository {
     val recetas = mutableListOf<Receta>()
     var deberiaFallar: Boolean = false
+    var simularUnauthorized: Boolean = false
+    var retardoSocialMs: Long = 0L
     var mensajeError: String = "Error simulado en repositorio"
 
+    private val _eventosSociales = MutableSharedFlow<EventoSocialReceta>(extraBufferCapacity = 32)
+    override val eventosSociales: Flow<EventoSocialReceta> = _eventosSociales.asSharedFlow()
+
     var llamadasListar: Int = 0
+    var llamadasListarFavoritos: Int = 0
     var llamadasCrear: Int = 0
     var llamadasActualizar: Int = 0
     var llamadasEliminar: Int = 0
+    var llamadasDarLike: Int = 0
+    var llamadasQuitarLike: Int = 0
+    var llamadasGuardarFavorito: Int = 0
+    var llamadasQuitarFavorito: Int = 0
 
     var ultimoCambioImagen: CambioImagen? = null
     var ultimoSoloMias: Boolean? = null
 
+    private fun errorSimulado(): Throwable =
+        if (simularUnauthorized) UnauthorizedException("Tu sesión expiró.") else AppException(mensajeError)
+
     override suspend fun listar(soloMias: Boolean): Result<List<Receta>> {
         llamadasListar++
         ultimoSoloMias = soloMias
-        return if (deberiaFallar) Result.failure(Exception(mensajeError))
+        return if (deberiaFallar || simularUnauthorized) Result.failure(errorSimulado())
         else Result.success(if (soloMias) recetas.filter { it.esPropia } else recetas.toList())
     }
 
     override suspend fun obtener(id: String): Result<Receta> {
         val receta = recetas.find { it.id == id }
-        return if (deberiaFallar || receta == null) {
-            Result.failure(Exception(mensajeError))
+        return if (deberiaFallar || simularUnauthorized || receta == null) {
+            Result.failure(errorSimulado())
         } else {
             Result.success(receta)
         }
@@ -51,8 +73,8 @@ class FakeRecetaRepository : RecetaRepository {
 
     override suspend fun crear(receta: Receta): Result<Receta> {
         llamadasCrear++
-        return if (deberiaFallar) {
-            Result.failure(Exception(mensajeError))
+        return if (deberiaFallar || simularUnauthorized) {
+            Result.failure(errorSimulado())
         } else {
             val creada = receta.copy(
                 id = if (receta.id.isBlank()) "id-${recetas.size + 1}" else receta.id,
@@ -66,8 +88,8 @@ class FakeRecetaRepository : RecetaRepository {
     override suspend fun actualizar(receta: Receta, imagen: CambioImagen): Result<Receta> {
         llamadasActualizar++
         ultimoCambioImagen = imagen
-        return if (deberiaFallar) {
-            Result.failure(Exception(mensajeError))
+        return if (deberiaFallar || simularUnauthorized) {
+            Result.failure(errorSimulado())
         } else {
             val actual = recetas.find { it.id == receta.id }
             val resultado = when (imagen) {
@@ -75,9 +97,24 @@ class FakeRecetaRepository : RecetaRepository {
                     esPropia = actual?.esPropia ?: receta.esPropia,
                     imagenUrl = actual?.imagenUrl,
                     imagenPublicId = actual?.imagenPublicId,
+                    likesCount = actual?.likesCount ?: receta.likesCount,
+                    leDiLike = actual?.leDiLike ?: receta.leDiLike,
+                    esFavorito = actual?.esFavorito ?: receta.esFavorito,
                 )
-                CambioImagen.Quitar -> receta.copy(imagenUrl = null, imagenPublicId = null)
-                is CambioImagen.Establecer -> receta.copy(imagenUrl = imagen.url, imagenPublicId = imagen.publicId)
+                CambioImagen.Quitar -> receta.copy(
+                    imagenUrl = null,
+                    imagenPublicId = null,
+                    likesCount = actual?.likesCount ?: receta.likesCount,
+                    leDiLike = actual?.leDiLike ?: receta.leDiLike,
+                    esFavorito = actual?.esFavorito ?: receta.esFavorito,
+                )
+                is CambioImagen.Establecer -> receta.copy(
+                    imagenUrl = imagen.url,
+                    imagenPublicId = imagen.publicId,
+                    likesCount = actual?.likesCount ?: receta.likesCount,
+                    leDiLike = actual?.leDiLike ?: receta.leDiLike,
+                    esFavorito = actual?.esFavorito ?: receta.esFavorito,
+                )
             }
             val index = recetas.indexOfFirst { it.id == receta.id }
             if (index != -1) recetas[index] = resultado
@@ -87,13 +124,109 @@ class FakeRecetaRepository : RecetaRepository {
 
     override suspend fun eliminar(id: String): Result<Unit> {
         llamadasEliminar++
-        return if (deberiaFallar) {
-            Result.failure(Exception(mensajeError))
+        return if (deberiaFallar || simularUnauthorized) {
+            Result.failure(errorSimulado())
         } else {
             recetas.removeAll { it.id == id }
+            _eventosSociales.tryEmit(EventoSocialReceta.RecetaEliminada(id))
             Result.success(Unit)
         }
     }
+
+    override suspend fun listarFavoritos(): Result<List<Receta>> {
+        llamadasListarFavoritos++
+        return if (deberiaFallar || simularUnauthorized) Result.failure(errorSimulado())
+        else Result.success(recetas.filter { it.esFavorito })
+    }
+
+    override suspend fun darLike(recetaId: String): Result<ResultadoLike> {
+        llamadasDarLike++
+        if (retardoSocialMs > 0) delay(retardoSocialMs)
+        val idx = recetas.indexOfFirst { it.id == recetaId }
+        if (deberiaFallar || simularUnauthorized || idx == -1) return Result.failure(errorSimulado())
+        val actual = recetas[idx]
+        val actualizada = if (actual.leDiLike) actual else actual.copy(likesCount = actual.likesCount + 1, leDiLike = true)
+        recetas[idx] = actualizada
+        val res = ResultadoLike(recetaId, actualizada.likesCount, actualizada.leDiLike)
+        _eventosSociales.tryEmit(EventoSocialReceta.LikeActualizado(recetaId, res.likesCount, res.leDiLike))
+        return Result.success(res)
+    }
+
+    override suspend fun quitarLike(recetaId: String): Result<ResultadoLike> {
+        llamadasQuitarLike++
+        if (retardoSocialMs > 0) delay(retardoSocialMs)
+        val idx = recetas.indexOfFirst { it.id == recetaId }
+        if (deberiaFallar || simularUnauthorized || idx == -1) return Result.failure(errorSimulado())
+        val actual = recetas[idx]
+        val actualizada = if (!actual.leDiLike) actual else actual.copy(likesCount = (actual.likesCount - 1).coerceAtLeast(0), leDiLike = false)
+        recetas[idx] = actualizada
+        val res = ResultadoLike(recetaId, actualizada.likesCount, actualizada.leDiLike)
+        _eventosSociales.tryEmit(EventoSocialReceta.LikeActualizado(recetaId, res.likesCount, res.leDiLike))
+        return Result.success(res)
+    }
+
+    override suspend fun guardarFavorito(recetaId: String): Result<Boolean> {
+        llamadasGuardarFavorito++
+        if (retardoSocialMs > 0) delay(retardoSocialMs)
+        val idx = recetas.indexOfFirst { it.id == recetaId }
+        if (deberiaFallar || simularUnauthorized || idx == -1) return Result.failure(errorSimulado())
+        recetas[idx] = recetas[idx].copy(esFavorito = true)
+        _eventosSociales.tryEmit(EventoSocialReceta.FavoritoActualizado(recetaId, true))
+        return Result.success(true)
+    }
+
+    override suspend fun quitarFavorito(recetaId: String): Result<Boolean> {
+        llamadasQuitarFavorito++
+        if (retardoSocialMs > 0) delay(retardoSocialMs)
+        val idx = recetas.indexOfFirst { it.id == recetaId }
+        if (deberiaFallar || simularUnauthorized || idx == -1) return Result.failure(errorSimulado())
+        recetas[idx] = recetas[idx].copy(esFavorito = false)
+        _eventosSociales.tryEmit(EventoSocialReceta.FavoritoActualizado(recetaId, false))
+        return Result.success(false)
+    }
+}
+
+class FakeVisitorStorage : VisitorStorage {
+    var activeId: String? = null
+    var activeToken: String? = null
+    var pendingUserId: String? = null
+    var pendingCorreo: String? = null
+    var pendingToken: String? = null
+
+    override fun guardarIdentidadVisitante(visitorId: String, visitorToken: String) {
+        activeId = visitorId
+        activeToken = visitorToken
+    }
+    override fun visitorTokenSync(): String? = activeToken
+    override fun visitorIdSync(): String? = activeId
+    override fun tokenParaLogin(correo: String): String? =
+        activeToken ?: if (pendingCorreo == correo.trim().lowercase()) pendingToken else null
+    override fun tokenParaRegistro(): String? = activeToken
+    override fun registrarMigracionPendiente(userId: String, correo: String, token: String) {
+        pendingUserId = userId
+        pendingCorreo = correo.trim().lowercase()
+        pendingToken = token
+        if (activeToken == token) {
+            activeToken = null
+            activeId = null
+        }
+    }
+    override fun completarORetirarTokenUsado(tokenUsado: String, userId: String?, limpiarPendienteDeCuenta: Boolean) {
+        if (activeToken == tokenUsado) {
+            activeToken = null
+            activeId = null
+        }
+        if (limpiarPendienteDeCuenta && pendingToken == tokenUsado && (userId == null || pendingUserId == userId)) {
+            pendingToken = null
+            pendingUserId = null
+            pendingCorreo = null
+        }
+    }
+    override fun rotarIdentidadVisitante() {
+        activeToken = null
+        activeId = null
+    }
+    override fun hayMigracionPendiente(): Boolean = !pendingToken.isNullOrBlank()
 }
 
 class FakeImagenRepository : ImagenRepository {

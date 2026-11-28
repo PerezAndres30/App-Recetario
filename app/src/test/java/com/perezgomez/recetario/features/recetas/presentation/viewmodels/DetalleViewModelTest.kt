@@ -6,6 +6,7 @@ import com.perezgomez.recetario.features.auth.domain.entities.Usuario
 import com.perezgomez.recetario.features.recetas.domain.entities.Ingrediente
 import com.perezgomez.recetario.features.recetas.domain.entities.Receta
 import com.perezgomez.recetario.features.recetas.domain.tts.EtapaLectura
+import com.perezgomez.recetario.features.recetas.domain.usecases.AlternarFavoritoUseCase
 import com.perezgomez.recetario.features.recetas.domain.usecases.EliminarRecetaPropiaUseCase
 import com.perezgomez.recetario.features.recetas.presentation.screens.DetalleContenido
 import com.perezgomez.recetario.util.FakeAuthRepository
@@ -71,6 +72,7 @@ class DetalleViewModelTest {
         authRepository = auth,
         recetaTtsService = fakeTtsService,
         eliminarRecetaPropiaUseCase = EliminarRecetaPropiaUseCase(recetaRepository, auth),
+        alternarFavoritoUseCase = AlternarFavoritoUseCase(recetaRepository, auth),
         savedStateHandle = SavedStateHandle(mapOf(Rutas.ARG_ID to recetaId)),
     )
 
@@ -275,5 +277,26 @@ class DetalleViewModelTest {
         assertEquals(EtapaLectura.FINALIZADO, viewModel.uiState.value.ttsState.etapa)
         assertTrue(viewModel.uiState.value.ttsState.esFinalizado)
         assertFalse(viewModel.uiState.value.ttsState.puedeContinuar)
+    }
+
+    @Test
+    fun detalle_likesYFavoritos_ySincronizacionExterna() = runTest {
+        val vm = crearViewModel("receta-global-100")
+        vm.cargar()
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.onToggleLike()
+        vm.onToggleFavorito()
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+
+        val receta = (vm.uiState.value.contenido as DetalleContenido.Listo).receta
+        assertEquals(1, receta.likesCount)
+        assertTrue(receta.leDiLike)
+        assertTrue(receta.esFavorito)
+
+        // Cambio desde otra pantalla sincroniza el detalle vía eventosSociales
+        recetaRepository.quitarFavorito("receta-global-100")
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse((vm.uiState.value.contenido as DetalleContenido.Listo).receta.esFavorito)
     }
 }

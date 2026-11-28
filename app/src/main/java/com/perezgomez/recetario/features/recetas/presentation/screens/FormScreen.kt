@@ -1,44 +1,39 @@
 package com.perezgomez.recetario.features.recetas.presentation.screens
 
-import androidx.compose.foundation.BorderStroke
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.FileProvider
-import java.io.File
-import java.util.UUID
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,19 +50,39 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.perezgomez.recetario.features.recetas.domain.entities.Categorias
 import com.perezgomez.recetario.core.ui.components.CampoTexto
 import com.perezgomez.recetario.core.ui.components.PantallaCargando
 import com.perezgomez.recetario.core.ui.components.SeccionFoto
+import com.perezgomez.recetario.core.ui.components.SeparadorOndulado
+import com.perezgomez.recetario.features.recetas.domain.entities.Categorias
 import com.perezgomez.recetario.features.recetas.presentation.viewmodels.FormViewModel
+import com.perezgomez.recetario.ui.theme.BordeEditorial
+import com.perezgomez.recetario.ui.theme.CremaCalida
+import com.perezgomez.recetario.ui.theme.CremaPapel
+import com.perezgomez.recetario.ui.theme.CremaVainilla
+import com.perezgomez.recetario.ui.theme.RecetarioTheme
+import com.perezgomez.recetario.ui.theme.RojoCereza
+import com.perezgomez.recetario.ui.theme.RosaFresa
+import com.perezgomez.recetario.ui.theme.RosaFresaSuave
+import com.perezgomez.recetario.ui.theme.TextoPrincipal
+import com.perezgomez.recetario.ui.theme.TextoSecundario
+import java.io.File
+import java.util.UUID
 
 @Composable
 fun FormScreen(
@@ -104,7 +119,6 @@ fun FormScreen(
         onCategoriaChange = viewModel::onCategoriaChange,
         onTiempoChange = viewModel::onTiempoChange,
         onPorcionesChange = viewModel::onPorcionesChange,
-        onFavoritaChange = viewModel::onFavoritaChange,
         onIngredienteChange = viewModel::onIngredienteChange,
         onAgregarIngrediente = viewModel::onAgregarIngrediente,
         onQuitarIngrediente = viewModel::onQuitarIngrediente,
@@ -135,7 +149,7 @@ fun FormScreen(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun FormContent(
     state: FormUiState,
@@ -146,7 +160,6 @@ fun FormContent(
     onCategoriaChange: (String) -> Unit,
     onTiempoChange: (String) -> Unit,
     onPorcionesChange: (String) -> Unit,
-    onFavoritaChange: (Boolean) -> Unit,
     onIngredienteChange: (Int, IngredienteForm) -> Unit,
     onAgregarIngrediente: () -> Unit,
     onQuitarIngrediente: (Int) -> Unit,
@@ -158,24 +171,45 @@ fun FormContent(
     onElegirDeGaleria: () -> Unit = {},
     onQuitarFoto: () -> Unit = {},
 ) {
+    val habilitado = !state.guardando && !state.procesandoImagen
+    val focusManager = LocalFocusManager.current
+
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = CremaVainilla,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
+                    containerColor = CremaVainilla,
+                    titleContentColor = TextoPrincipal,
                 ),
-                title = {
-                    Text(
-                        text = if (state.esEdicion) "Editar receta" else "Nueva receta",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                },
                 navigationIcon = {
-                    IconButton(onClick = onVolver) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                    IconButton(
+                        onClick = onVolver,
+                        modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver",
+                            tint = TextoPrincipal,
+                        )
+                    }
+                },
+                title = {
+                    Column {
+                        Text(
+                            text = "PÁGINA DE RECETARIO",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                letterSpacing = 1.2.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = RojoCereza,
+                        )
+                        Text(
+                            text = if (state.esEdicion) "Editar receta" else "Nueva receta",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = TextoPrincipal,
+                        )
                     }
                 },
             )
@@ -183,368 +217,424 @@ fun FormContent(
     ) { padding ->
         if (state.cargando) {
             PantallaCargando(Modifier.padding(padding))
-            return@Scaffold
-        }
+        } else {
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                // 01 · Portada del platillo
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SeccionCabeceraEditorial(
+                        numero = "01",
+                        titulo = "Portada y nombre del platillo",
+                        subtitulo = "Fotografía protagonista y ficha principal",
+                    )
 
-        val errores = state.errores
-        val habilitado = !state.guardando && !state.procesandoImagen
+                    SeccionFoto(
+                        vistaPrevia = state.vistaPreviaImagen,
+                        procesando = state.procesandoImagen,
+                        habilitado = !state.guardando,
+                        onTomarFoto = onTomarFoto,
+                        onElegirDeGaleria = onElegirDeGaleria,
+                        onQuitarFoto = onQuitarFoto,
+                    )
+                }
 
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            // ================= FOTO =================
-            SeccionFoto(
-                vistaPrevia = state.vistaPreviaImagen,
-                procesando = state.procesandoImagen,
-                habilitado = habilitado,
-                onTomarFoto = onTomarFoto,
-                onElegirDeGaleria = onElegirDeGaleria,
-                onQuitarFoto = onQuitarFoto,
-            )
+                // Título, descripción, categoría y porciones directamente sobre papel del recetario
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CampoTexto(
+                        valor = state.titulo,
+                        onValorChange = onTituloChange,
+                        etiqueta = "Título",
+                        error = state.errores.titulo,
+                        habilitado = habilitado,
+                        textStyle = MaterialTheme.typography.headlineSmall.copy(
+                            color = TextoPrincipal,
+                        ),
+                    )
 
-            // ================= 01 INFORMACIÓN GENERAL =================
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "01 INFORMACIÓN GENERAL",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                    ),
-                    color = MaterialTheme.colorScheme.primary,
-                )
+                    CampoTexto(
+                        valor = state.descripcion,
+                        onValorChange = onDescripcionChange,
+                        etiqueta = "Descripción (opcional)",
+                        error = state.errores.descripcion,
+                        unaLinea = false,
+                        lineasMinimas = 2,
+                        habilitado = habilitado,
+                    )
 
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        CampoTexto(
-                            valor = state.titulo,
-                            onValorChange = onTituloChange,
-                            etiqueta = "Título",
-                            error = errores.titulo,
-                            habilitado = habilitado,
-                        )
-
-                        CampoTexto(
-                            valor = state.descripcion,
-                            onValorChange = onDescripcionChange,
-                            etiqueta = "Descripción (opcional)",
-                            error = errores.descripcion,
-                            unaLinea = false,
-                            lineasMinimas = 2,
-                            habilitado = habilitado,
-                        )
-
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "Categoría",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            text = "Categoría culinaria",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = TextoPrincipal,
                         )
-                        Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Categorias.todas.forEach { categoria ->
+                            Categorias.todas.forEach { cat ->
+                                val seleccionada = state.categoria == cat
                                 FilterChip(
-                                    selected = state.categoria == categoria,
-                                    onClick = { onCategoriaChange(categoria) },
-                                    label = { Text(categoria) },
-                                    shape = RoundedCornerShape(20.dp),
+                                    selected = seleccionada,
+                                    onClick = {
+                                        if (habilitado) {
+                                            focusManager.clearFocus()
+                                            onCategoriaChange(cat)
+                                        }
+                                    },
+                                    enabled = habilitado,
+                                    shape = RoundedCornerShape(50),
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                        containerColor = MaterialTheme.colorScheme.surface,
-                                        labelColor = MaterialTheme.colorScheme.onSurface,
+                                        selectedContainerColor = RojoCereza,
+                                        selectedLabelColor = CremaVainilla,
+                                        containerColor = CremaPapel,
+                                        labelColor = TextoPrincipal,
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
                                         enabled = habilitado,
-                                        selected = state.categoria == categoria,
-                                        borderColor = MaterialTheme.colorScheme.outlineVariant,
-                                        selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                        selected = seleccionada,
+                                        borderColor = BordeEditorial,
+                                        selectedBorderColor = RojoCereza,
                                     ),
-                                    enabled = habilitado,
+                                    label = {
+                                        Text(
+                                            text = cat,
+                                            style = MaterialTheme.typography.labelLarge,
+                                        )
+                                    },
                                 )
                             }
                         }
-                        if (errores.categoria != null) {
+                        if (state.errores.categoria != null) {
                             Text(
-                                text = errores.categoria,
-                                color = MaterialTheme.colorScheme.error,
+                                text = state.errores.categoria,
                                 style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            CampoTexto(
-                                valor = state.tiempoMinutos,
-                                onValorChange = onTiempoChange,
-                                etiqueta = "Tiempo (min)",
-                                error = errores.tiempo,
-                                tipoTeclado = KeyboardType.Number,
-                                habilitado = habilitado,
-                                modifier = Modifier.weight(1f),
-                            )
-                            CampoTexto(
-                                valor = state.porciones,
-                                onValorChange = onPorcionesChange,
-                                etiqueta = "Porciones",
-                                error = errores.porciones,
-                                tipoTeclado = KeyboardType.Number,
-                                habilitado = habilitado,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(top = 4.dp),
-                        ) {
-                            Text(
-                                text = "Receta favorita",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Switch(
-                                checked = state.favorita,
-                                onCheckedChange = onFavoritaChange,
-                                enabled = habilitado,
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                ),
+                                color = MaterialTheme.colorScheme.error,
                             )
                         }
                     }
-                }
-            }
 
-            // ================= 02 INGREDIENTES =================
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "02 INGREDIENTES",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                    ),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-
-                state.ingredientes.forEachIndexed { indice, ingrediente ->
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        CampoTexto(
+                            valor = state.tiempoMinutos,
+                            onValorChange = onTiempoChange,
+                            etiqueta = "Tiempo (min)",
+                            error = state.errores.tiempo,
+                            tipoTeclado = KeyboardType.Number,
+                            habilitado = habilitado,
+                            modifier = Modifier.weight(1f),
+                        )
+                        CampoTexto(
+                            valor = state.porciones,
+                            onValorChange = onPorcionesChange,
+                            etiqueta = "Porciones",
+                            error = state.errores.porciones,
+                            tipoTeclado = KeyboardType.Number,
+                            habilitado = habilitado,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
+                SeparadorOndulado(color = RosaFresa)
+
+                // 02 · Ingredientes (lista editorial continua sobre hoja del recetario)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SeccionCabeceraEditorial(
+                        numero = "02",
+                        titulo = "Ingredientes y medidas",
+                        subtitulo = "${state.ingredientes.size} elementos en la despensa",
+                    )
+
+                    if (state.errores.ingredientes != null) {
+                        Text(
+                            text = state.errores.ingredientes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+
+                    state.ingredientes.forEachIndexed { indice, ing ->
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = CremaPapel,
+                            border = BorderStroke(1.dp, BordeEditorial),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    CampoTexto(
+                                        valor = ing.nombre,
+                                        onValorChange = { onIngredienteChange(indice, ing.copy(nombre = it)) },
+                                        etiqueta = "Ingrediente ${indice + 1}",
+                                        habilitado = habilitado,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    if (state.ingredientes.size > 1) {
+                                        IconButton(
+                                            onClick = { onQuitarIngrediente(indice) },
+                                            enabled = habilitado,
+                                            modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "Quitar ingrediente",
+                                                tint = TextoSecundario,
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    CampoTexto(
+                                        valor = ing.cantidad,
+                                        onValorChange = { onIngredienteChange(indice, ing.copy(cantidad = it)) },
+                                        etiqueta = "Cant.",
+                                        habilitado = habilitado,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    CampoTexto(
+                                        valor = ing.unidad,
+                                        onValorChange = { onIngredienteChange(indice, ing.copy(unidad = it)) },
+                                        etiqueta = "Unidad",
+                                        habilitado = habilitado,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = onAgregarIngrediente,
+                        enabled = habilitado,
+                        shape = RoundedCornerShape(50),
+                        border = BorderStroke(1.dp, RojoCereza),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RojoCereza),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp),
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Agregar ingrediente",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = BordeEditorial)
+
+                // 03 · Preparación paso a paso
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SeccionCabeceraEditorial(
+                        numero = "03",
+                        titulo = "Preparación paso a paso",
+                        subtitulo = "Describe cada etapa para guiar al cocinero y a la lectura por voz",
+                    )
+
+                    if (state.errores.pasos != null) {
+                        Text(
+                            text = state.errores.pasos,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+
+                    state.pasos.forEachIndexed { indice, paso ->
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = CremaPapel,
+                            border = BorderStroke(1.dp, BordeEditorial),
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.padding(14.dp),
                             ) {
-                                CampoTexto(
-                                    valor = ingrediente.nombre,
-                                    onValorChange = { onIngredienteChange(indice, ingrediente.copy(nombre = it)) },
-                                    etiqueta = "Ingrediente ${indice + 1}",
-                                    habilitado = habilitado,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                IconButton(
-                                    onClick = { onQuitarIngrediente(indice) },
-                                    enabled = habilitado && state.ingredientes.size > 1,
+                                Box(
+                                    modifier = Modifier.padding(top = 10.dp),
+                                    contentAlignment = Alignment.Center,
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Quitar ingrediente",
-                                        tint = if (state.ingredientes.size > 1) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
+                                    Text(
+                                        text = (indice + 1).toString().padStart(2, '0'),
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = RojoCereza,
                                     )
                                 }
-                            }
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 CampoTexto(
-                                    valor = ingrediente.cantidad,
-                                    onValorChange = { onIngredienteChange(indice, ingrediente.copy(cantidad = it)) },
-                                    etiqueta = "Cantidad",
+                                    valor = paso,
+                                    onValorChange = { onPasoChange(indice, it) },
+                                    etiqueta = "Paso ${indice + 1}",
+                                    unaLinea = false,
+                                    lineasMinimas = 2,
                                     habilitado = habilitado,
                                     modifier = Modifier.weight(1f),
                                 )
-                                CampoTexto(
-                                    valor = ingrediente.unidad,
-                                    onValorChange = { onIngredienteChange(indice, ingrediente.copy(unidad = it)) },
-                                    etiqueta = "Unidad",
-                                    habilitado = habilitado,
-                                    modifier = Modifier.weight(1f),
-                                )
+                                if (state.pasos.size > 1) {
+                                    IconButton(
+                                        onClick = { onQuitarPaso(indice) },
+                                        enabled = habilitado,
+                                        modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Quitar paso",
+                                            tint = TextoSecundario,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
+
+                    OutlinedButton(
+                        onClick = onAgregarPaso,
+                        enabled = habilitado,
+                        shape = RoundedCornerShape(50),
+                        border = BorderStroke(1.dp, RojoCereza),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RojoCereza),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 48.dp),
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Agregar paso",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
                 }
 
-                if (errores.ingredientes != null) {
-                    Text(
-                        text = errores.ingredientes,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = onAgregarIngrediente,
-                    enabled = habilitado,
-                    shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = "+ Agregar ingrediente",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                    )
-                }
-            }
-
-            // ================= 03 PASOS DE PREPARACIÓN =================
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "03 PASOS DE PREPARACIÓN",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                    ),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-
-                state.pasos.forEachIndexed { indice, paso ->
-                    Card(
+                if (state.error != null) {
+                    Surface(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        color = MaterialTheme.colorScheme.errorContainer,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp),
-                            verticalAlignment = Alignment.Top,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            // Indicador circular numerado
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .padding(top = 12.dp)
-                                    .size(28.dp),
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "${indice + 1}",
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    )
-                                }
-                            }
-
-                            CampoTexto(
-                                valor = paso,
-                                onValorChange = { onPasoChange(indice, it) },
-                                etiqueta = "Paso ${indice + 1}",
-                                unaLinea = false,
-                                lineasMinimas = 2,
-                                habilitado = habilitado,
-                                modifier = Modifier.weight(1f),
-                            )
-
-                            IconButton(
-                                onClick = { onQuitarPaso(indice) },
-                                enabled = habilitado && state.pasos.size > 1,
-                                modifier = Modifier.padding(top = 8.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Quitar paso",
-                                    tint = if (state.pasos.size > 1) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
-                                )
-                            }
-                        }
+                        Text(
+                            text = state.error,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(12.dp),
+                        )
                     }
                 }
 
-                if (errores.pasos != null) {
-                    Text(
-                        text = errores.pasos,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = onAgregarPaso,
+                Button(
+                    onClick = {
+                        focusManager.clearFocus()
+                        onGuardar()
+                    },
                     enabled = habilitado,
-                    shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RojoCereza,
+                        contentColor = CremaVainilla,
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 54.dp),
                 ) {
-                    Text(
-                        text = "+ Agregar paso",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                    )
+                    if (state.guardando) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = CremaVainilla,
+                        )
+                    } else {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (state.esEdicion) "Guardar cambios" else "Guardar receta",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(20.dp))
             }
-
-            if (state.error != null) {
-                Text(
-                    text = state.error,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Botón principal
-            Button(
-                onClick = onGuardar,
-                enabled = habilitado,
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-            ) {
-                if (state.guardando) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                } else {
-                    Text(
-                        text = if (state.esEdicion) "Guardar cambios" else "Guardar receta",
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+}
+
+@Composable
+private fun SeccionCabeceraEditorial(
+    numero: String,
+    titulo: String,
+    subtitulo: String,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = "$numero · RECETARIO",
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 1.2.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = RojoCereza,
+        )
+        Text(
+            text = titulo,
+            style = MaterialTheme.typography.headlineSmall,
+            color = TextoPrincipal,
+        )
+        Text(
+            text = subtitulo,
+            style = MaterialTheme.typography.bodySmall,
+            color = TextoSecundario,
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true, name = "Página de recetario (Crear)")
+@Composable
+private fun FormScreenPreview() {
+    RecetarioTheme {
+        FormContent(
+            state = FormUiState(
+                titulo = "Panqué de limón",
+                descripcion = "Esponjoso con glaseado cítrico.",
+                categoria = "postre",
+                tiempoMinutos = "45",
+                porciones = "8",
+                ingredientes = listOf(IngredienteForm("Harina de trigo", "250", "g")),
+                pasos = listOf("Precalentar el horno a 180 °C y engrasar el molde."),
+            ),
+            onVolver = {},
+            onTituloChange = {},
+            onDescripcionChange = {},
+            onCategoriaChange = {},
+            onTiempoChange = {},
+            onPorcionesChange = {},
+            onIngredienteChange = { _, _ -> },
+            onAgregarIngrediente = {},
+            onQuitarIngrediente = {},
+            onPasoChange = { _, _ -> },
+            onAgregarPaso = {},
+            onQuitarPaso = {},
+            onGuardar = {},
+        )
     }
 }

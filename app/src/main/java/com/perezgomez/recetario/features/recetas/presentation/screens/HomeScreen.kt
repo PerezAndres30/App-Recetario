@@ -7,34 +7,30 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,26 +39,45 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.perezgomez.recetario.features.recetas.domain.entities.Receta
-import com.perezgomez.recetario.core.ui.components.ImagenReceta
+import com.perezgomez.recetario.core.ui.components.BarraNavegacionEditorial
 import com.perezgomez.recetario.core.ui.components.ConfirmarEliminarDialog
+import com.perezgomez.recetario.core.ui.components.DestinoBarraUsuario
+import com.perezgomez.recetario.core.ui.components.EncabezadoEditorial
+import com.perezgomez.recetario.core.ui.components.HeroCulinarioEditorial
+import com.perezgomez.recetario.core.ui.components.PantallaCargando
 import com.perezgomez.recetario.core.ui.components.PantallaError
+import com.perezgomez.recetario.core.ui.components.SeparadorOndulado
+import com.perezgomez.recetario.core.ui.components.TarjetaRecetaCatalogo
+import com.perezgomez.recetario.features.recetas.domain.entities.Ingrediente
+import com.perezgomez.recetario.features.recetas.domain.entities.Receta
 import com.perezgomez.recetario.features.recetas.presentation.viewmodels.HomeViewModel
+import com.perezgomez.recetario.ui.theme.BordeEditorial
+import com.perezgomez.recetario.ui.theme.CremaCalida
+import com.perezgomez.recetario.ui.theme.CremaPapel
+import com.perezgomez.recetario.ui.theme.CremaVainilla
+import com.perezgomez.recetario.ui.theme.RecetarioTheme
+import com.perezgomez.recetario.ui.theme.RojoCereza
+import com.perezgomez.recetario.ui.theme.RosaFresa
+import com.perezgomez.recetario.ui.theme.TextoPrincipal
+import com.perezgomez.recetario.ui.theme.TextoSecundario
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -74,11 +89,13 @@ fun HomeScreen(
     onVerDetalle: (String) -> Unit,
     onIrAExplorar: () -> Unit = {},
     onIrAMisRecetas: () -> Unit = {},
+    onIrAFavoritos: () -> Unit = {},
     onIniciarSesion: () -> Unit = {},
     onSesionCerrada: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(modo) {
         viewModel.configurarModo(modo)
@@ -104,6 +121,12 @@ fun HomeScreen(
         if (state.sesionCerrada) onSesionCerrada()
     }
 
+    LaunchedEffect(state.sesionExpirada) {
+        if (state.sesionExpirada && state.modo == ModoHome.MIS_RECETAS) {
+            onIniciarSesion()
+        }
+    }
+
     HomeContent(
         state = state,
         snackbarHostState = snackbarHostState,
@@ -114,8 +137,11 @@ fun HomeScreen(
         onActualizar = viewModel::cargar,
         onIrAExplorar = onIrAExplorar,
         onIrAMisRecetas = onIrAMisRecetas,
+        onIrAFavoritos = onIrAFavoritos,
         onIniciarSesion = onIniciarSesion,
         onCerrarSesion = viewModel::onCerrarSesion,
+        onLikeClick = viewModel::onToggleLike,
+        onFavoritoClick = viewModel::onToggleFavorito,
     )
 
     state.recetaAEliminar?.let { receta ->
@@ -128,11 +154,10 @@ fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeContent(
     state: HomeUiState,
-    snackbarHostState: SnackbarHostState,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onNuevaReceta: () -> Unit,
     onVerDetalle: (String) -> Unit,
     onEliminarClick: (Receta) -> Unit,
@@ -140,283 +165,240 @@ fun HomeContent(
     onActualizar: () -> Unit,
     onIrAExplorar: () -> Unit,
     onIrAMisRecetas: () -> Unit,
+    onIrAFavoritos: () -> Unit = {},
     onIniciarSesion: () -> Unit,
     onCerrarSesion: () -> Unit,
+    likesPorReceta: Map<String, Pair<Int, Boolean>> = emptyMap(),
+    favoritosPorReceta: Set<String> = emptySet(),
+    onLikeClick: (String) -> Unit = {},
+    onFavoritoClick: (String) -> Unit = {},
 ) {
     val esExplorar = state.modo == ModoHome.EXPLORAR
+    val densidad = LocalDensity.current
+    val minCelda = if (densidad.fontScale > 1.25f) 260.dp else 160.dp
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = CremaVainilla,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-                title = {
-                    Column {
-                        Text(
-                            text = if (esExplorar) "Explorar recetas" else "Mis recetas",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.primary,
+            val tituloHeader = if (esExplorar) "Explorar recetas" else "Mis recetas"
+            val subtituloHeader = when {
+                state.estaAutenticado && !esExplorar && state.nombreUsuario.isNotBlank() ->
+                    "Hola, ${state.nombreUsuario}"
+                state.estaAutenticado && esExplorar && state.nombreUsuario.isNotBlank() ->
+                    "Cocina de ${state.nombreUsuario}"
+                esExplorar -> "Edición de cocina abierta"
+                else -> "Colección personal"
+            }
+
+            EncabezadoEditorial(
+                titulo = tituloHeader,
+                subtitulo = subtituloHeader,
+                acciones = {
+                    if (state.actualizando) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp)
+                                .size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = RojoCereza,
                         )
-                        if (esExplorar) {
-                            Text(
-                                text = "Catálogo público",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        } else if (state.nombreUsuario.isNotBlank()) {
-                            Text(
-                                text = "Hola, ${state.nombreUsuario}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    } else {
+                        IconButton(
+                            onClick = onActualizar,
+                            modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp),
+                        ) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Actualizar",
+                                tint = TextoPrincipal,
                             )
                         }
                     }
-                },
-                actions = {
-                    IconButton(
-                        onClick = onActualizar,
-                        enabled = !state.actualizando,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Actualizar recetas",
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
 
-                    if (esExplorar) {
-                        if (state.estaAutenticado) {
-                            // Usuario autenticado en Explorar -> Acceso directo a Mis recetas
-                            TextButton(
-                                onClick = onIrAMisRecetas,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.textButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary,
-                                ),
+                    if (!state.estaAutenticado) {
+                        Surface(
+                            onClick = onIniciarSesion,
+                            shape = RoundedCornerShape(50),
+                            color = RojoCereza,
+                            modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                             ) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                    Icons.AutoMirrored.Filled.Login,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
+                                    tint = CremaVainilla,
+                                    modifier = Modifier.size(16.dp),
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Mis recetas",
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            }
-                            IconButton(onClick = onCerrarSesion) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Logout,
-                                    contentDescription = "Cerrar sesión",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        } else {
-                            // Visitante en Explorar -> Iniciar sesión
-                            TextButton(
-                                onClick = onIniciarSesion,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.textButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary,
-                                ),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Login,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "Iniciar sesión",
-                                    fontWeight = FontWeight.SemiBold,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = CremaVainilla,
                                 )
                             }
                         }
                     } else {
-                        // Usuario en Mis recetas -> Navegar a Explorar catálogo público
-                        TextButton(
-                            onClick = onIrAExplorar,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary,
-                            ),
+                        IconButton(
+                            onClick = onCerrarSesion,
+                            modifier = Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp),
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Explore,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Explorar",
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                        IconButton(onClick = onCerrarSesion) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                Icons.AutoMirrored.Filled.Logout,
                                 contentDescription = "Cerrar sesión",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = TextoPrincipal,
                             )
                         }
                     }
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            if (state.estaAutenticado) {
+                BarraNavegacionEditorial(
+                    destinoActual = if (esExplorar) {
+                        DestinoBarraUsuario.EXPLORAR
+                    } else {
+                        DestinoBarraUsuario.MIS_RECETAS
+                    },
+                    onIrAExplorar = onIrAExplorar,
+                    onIrAMisRecetas = onIrAMisRecetas,
+                    onIrAFavoritos = onIrAFavoritos,
+                )
+            }
+        },
         floatingActionButton = {
-            // Solo se permite crear recetas desde la sección de Mis recetas
-            if (!esExplorar && state.estaAutenticado) {
-                FloatingActionButton(
+            if (state.estaAutenticado) {
+                ExtendedFloatingActionButton(
                     onClick = onNuevaReceta,
-                    shape = RoundedCornerShape(20.dp),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Nueva receta")
-                }
+                    shape = RoundedCornerShape(50),
+                    containerColor = RojoCereza,
+                    contentColor = CremaVainilla,
+                    icon = {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Nueva receta",
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "Nueva receta",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    },
+                )
             }
         },
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
-                .padding(padding)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .padding(padding),
         ) {
-            // Indicador de actualización con estilo salvia
-            if (state.actualizando && state.lista !is ListaUi.Cargando) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = if (esExplorar) "Actualizando catálogo…" else "Actualizando tus recetas…",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-                }
-            }
+            when (val lista = state.lista) {
+                ListaUi.Cargando -> PantallaCargando()
+                is ListaUi.Error -> PantallaError(lista.mensaje, onReintentar = onReintentar)
+                ListaUi.Vacia -> EstadoVacioEditorial(
+                    esExplorar = esExplorar,
+                    estaAutenticado = state.estaAutenticado,
+                    onNuevaReceta = onNuevaReceta,
+                    onIniciarSesion = onIniciarSesion,
+                )
 
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-            ) {
-                when (val lista = state.lista) {
-                    ListaUi.Cargando -> Column(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = if (esExplorar) "Cargando catálogo público…" else "Cargando tus recetas…",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    ListaUi.Vacia -> Column(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(96.dp),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Restaurant,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(44.dp),
+                is ListaUi.Contenido -> LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = minCelda),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 12.dp,
+                        bottom = 96.dp,
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    if (esExplorar) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                HeroCulinarioEditorial(
+                                    etiquetaSuperior = "RECETARIO COMUNITARIO",
+                                    titulo = "¿Qué cocinamos hoy?",
+                                    subtitulo = if (state.estaAutenticado) {
+                                        "Explora creaciones reales de la comunidad o escucha cualquier platillo paso a paso."
+                                    } else {
+                                        "Explora el catálogo público y escucha cada preparación con lectura por voz."
+                                    },
+                                    modifier = Modifier.clip(RoundedCornerShape(20.dp)),
                                 )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "CATÁLOGO EDITORIAL",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            letterSpacing = 1.2.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                        ),
+                                        color = RojoCereza,
+                                    )
+                                    Text(
+                                        text = "${lista.recetas.size} platillos",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = TextoSecundario,
+                                    )
+                                }
                             }
                         }
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Text(
-                            text = if (esExplorar) "No hay recetas disponibles" else "Aún no tienes recetas propias",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            textAlign = TextAlign.Center,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (esExplorar) {
-                                "Vuelve a consultar más tarde para descubrir nuevas recetas."
-                            } else {
-                                "Las recetas del catálogo pertenecen a la comunidad. Crea tu primera receta con el botón + para gestionarla aquí."
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                        )
-                        if (!esExplorar && state.estaAutenticado) {
-                            Spacer(modifier = Modifier.height(20.dp))
-                            Button(
-                                onClick = onNuevaReceta,
-                                shape = RoundedCornerShape(24.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                                ),
-                                modifier = Modifier.height(48.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Nueva receta",
-                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                                )
+                    } else {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "CUADERNO DE AUTOR",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            letterSpacing = 1.2.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                        ),
+                                        color = RojoCereza,
+                                    )
+                                    Text(
+                                        text = "${lista.recetas.size} recetas propias",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = TextoSecundario,
+                                    )
+                                }
+                                HorizontalDivider(color = BordeEditorial)
                             }
                         }
                     }
-                    is ListaUi.Error -> PantallaError(
-                        mensaje = lista.mensaje,
-                        onReintentar = onReintentar,
-                    )
-                    is ListaUi.Contenido -> LazyColumn(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(lista.recetas, key = { it.id }) { receta ->
-                            RecetaItem(
-                                receta = receta,
-                                puedeEliminar = receta.esPropia && state.estaAutenticado,
-                                onClick = { onVerDetalle(receta.id) },
-                                onEliminar = { onEliminarClick(receta) },
-                            )
+
+                    items(lista.recetas, key = { it.id }) { receta ->
+                        val estadoLike = likesPorReceta[receta.id] ?: (receta.likesCount to receta.leDiLike)
+                        val esFav = if (favoritosPorReceta.isNotEmpty()) {
+                            favoritosPorReceta.contains(receta.id)
+                        } else {
+                            receta.esFavorito
                         }
+                        TarjetaRecetaCatalogo(
+                            receta = receta,
+                            onClick = { onVerDetalle(receta.id) },
+                            likesCount = estadoLike.first,
+                            leDiLike = estadoLike.second,
+                            onLikeClick = { onLikeClick(receta.id) },
+                            mostrarFavorito = state.estaAutenticado,
+                            esFavorito = esFav,
+                            onFavoritoClick = { onFavoritoClick(receta.id) },
+                            puedeEliminar = state.estaAutenticado && receta.esPropia && !esExplorar,
+                            onEliminarClick = { onEliminarClick(receta) },
+                        )
                     }
                 }
             }
@@ -425,117 +407,227 @@ fun HomeContent(
 }
 
 @Composable
-private fun RecetaItem(
-    receta: Receta,
-    puedeEliminar: Boolean,
-    onClick: () -> Unit,
-    onEliminar: () -> Unit,
+private fun EstadoVacioEditorial(
+    esExplorar: Boolean,
+    estaAutenticado: Boolean,
+    onNuevaReceta: () -> Unit,
+    onIniciarSesion: () -> Unit,
 ) {
-    Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth(),
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(28.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            // Miniatura: la foto de la receta, o un ícono si no tiene
-            ImagenReceta(
-                origen = receta.imagenUrl,
-                descripcion = "Foto de ${receta.titulo}",
-                modifier = Modifier.size(56.dp),
+            Surface(
+                shape = CircleShape,
+                color = CremaCalida,
+                border = BorderStroke(1.dp, BordeEditorial),
+                modifier = Modifier.size(72.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.MenuBook,
+                        contentDescription = null,
+                        tint = RojoCereza,
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+            }
+
+            Text(
+                text = if (esExplorar) {
+                    "Aún no hay recetas publicadas"
+                } else {
+                    "Tu recetario espera su primer platillo"
+                },
+                style = MaterialTheme.typography.headlineSmall,
+                color = TextoPrincipal,
+                textAlign = TextAlign.Center,
             )
 
-            Spacer(modifier = Modifier.width(12.dp))
+            SeparadorOndulado(
+                color = RosaFresa,
+                modifier = Modifier.width(120.dp),
+            )
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = receta.titulo,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+            Text(
+                text = when {
+                    esExplorar -> "Cuando la comunidad publique platillos aparecerán en este catálogo."
+                    estaAutenticado -> "Escribe los ingredientes, pasos y fotografía de tu primera creación."
+                    else -> "Inicia sesión para redactar y organizar tu propio recetario."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextoSecundario,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            if (estaAutenticado) {
+                Button(
+                    onClick = onNuevaReceta,
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RojoCereza,
+                        contentColor = CremaPapel,
+                    ),
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp),
                 ) {
-                    // Chip de categoría
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                    ) {
-                        Text(
-                            text = receta.categoria,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        )
-                    }
-
-                    // Chip de tiempo con icono de reloj
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Schedule,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(13.dp),
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text = "${receta.tiempoMinutos} min",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    // Porciones
-                    Text(
-                        text = "· ${receta.porciones} porc.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Crear primera receta", style = MaterialTheme.typography.labelLarge)
                 }
-            }
-
-            // Indicador visual de favorita
-            if (receta.favorita) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.size(32.dp),
+            } else if (!esExplorar) {
+                Button(
+                    onClick = onIniciarSesion,
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = RojoCereza,
+                        contentColor = CremaPapel,
+                    ),
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp),
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Favorite,
-                            contentDescription = "Favorita",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(17.dp),
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-
-            // Acción de eliminar solo disponible para recetas verificadas en Mis recetas
-            if (puedeEliminar) {
-                IconButton(
-                    onClick = onEliminar,
-                    modifier = Modifier.size(36.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Eliminar receta",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.size(20.dp),
-                    )
+                    Text("Iniciar sesión", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
+    }
+}
+
+private val recetasDemoPreview = listOf(
+    Receta(
+        id = "p1",
+        titulo = "Tarta tibia de fresas y crema",
+        categoria = "postre",
+        tiempoMinutos = 40,
+        porciones = 6,
+        ingredientes = listOf(Ingrediente("Fresas", "300", "g")),
+        pasos = listOf("Hornear la masa y cubrir con crema."),
+        esPropia = true,
+    ),
+    Receta(
+        id = "p2",
+        titulo = "Chilaquiles rojos caseros",
+        categoria = "desayuno",
+        tiempoMinutos = 20,
+        porciones = 2,
+        ingredientes = listOf(Ingrediente("Totopos", "200", "g")),
+        pasos = listOf("Bañar en salsa de jitomate."),
+        esPropia = false,
+    ),
+    Receta(
+        id = "p3",
+        titulo = "Pasta al limón con albahaca",
+        categoria = "comida",
+        tiempoMinutos = 25,
+        porciones = 4,
+        ingredientes = listOf(Ingrediente("Pasta", "400", "g")),
+        pasos = listOf("Cocer y saltear con mantequilla y limón."),
+        esPropia = false,
+    ),
+    Receta(
+        id = "p4",
+        titulo = "Panqué dorado de mantequilla",
+        categoria = "postre",
+        tiempoMinutos = 50,
+        porciones = 8,
+        ingredientes = listOf(Ingrediente("Mantequilla", "180", "g")),
+        pasos = listOf("Acremar e incorporar harina."),
+        esPropia = true,
+    ),
+)
+
+@Preview(showBackground = true, showSystemUi = true, name = "Explorar · Visitante (Editorial)")
+@Composable
+private fun ExplorarVisitantePreview() {
+    RecetarioTheme {
+        HomeContent(
+            state = HomeUiState(
+                modo = ModoHome.EXPLORAR,
+                estaAutenticado = false,
+                lista = ListaUi.Contenido(recetasDemoPreview),
+            ),
+            likesPorReceta = mapOf(
+                "p1" to (34 to true),
+                "p2" to (19 to false),
+                "p3" to (12 to false),
+                "p4" to (27 to true),
+            ),
+            onNuevaReceta = {},
+            onVerDetalle = {},
+            onEliminarClick = {},
+            onReintentar = {},
+            onActualizar = {},
+            onIrAExplorar = {},
+            onIrAMisRecetas = {},
+            onIniciarSesion = {},
+            onCerrarSesion = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true, name = "Explorar · Registrado (Likes + Favoritos)")
+@Composable
+private fun ExplorarRegistradoPreview() {
+    RecetarioTheme {
+        HomeContent(
+            state = HomeUiState(
+                modo = ModoHome.EXPLORAR,
+                estaAutenticado = true,
+                nombreUsuario = "Ana Sofía",
+                lista = ListaUi.Contenido(recetasDemoPreview),
+            ),
+            likesPorReceta = mapOf(
+                "p1" to (34 to true),
+                "p2" to (19 to false),
+                "p3" to (12 to true),
+                "p4" to (27 to false),
+            ),
+            favoritosPorReceta = setOf("p1", "p2"),
+            onNuevaReceta = {},
+            onVerDetalle = {},
+            onEliminarClick = {},
+            onReintentar = {},
+            onActualizar = {},
+            onIrAExplorar = {},
+            onIrAMisRecetas = {},
+            onIniciarSesion = {},
+            onCerrarSesion = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true, name = "Mis recetas · Propias")
+@Composable
+private fun MisRecetasPreview() {
+    RecetarioTheme {
+        HomeContent(
+            state = HomeUiState(
+                modo = ModoHome.MIS_RECETAS,
+                estaAutenticado = true,
+                nombreUsuario = "Ana Sofía",
+                lista = ListaUi.Contenido(recetasDemoPreview.filter { it.esPropia }),
+            ),
+            likesPorReceta = mapOf(
+                "p1" to (34 to true),
+                "p4" to (27 to false),
+            ),
+            favoritosPorReceta = setOf("p1"),
+            onNuevaReceta = {},
+            onVerDetalle = {},
+            onEliminarClick = {},
+            onReintentar = {},
+            onActualizar = {},
+            onIrAExplorar = {},
+            onIrAMisRecetas = {},
+            onIniciarSesion = {},
+            onCerrarSesion = {},
+        )
     }
 }

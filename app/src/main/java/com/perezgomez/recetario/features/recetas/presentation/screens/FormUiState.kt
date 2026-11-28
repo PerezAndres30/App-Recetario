@@ -32,7 +32,6 @@ data class FormUiState(
     val porciones: String = "1",
     val ingredientes: List<IngredienteForm> = listOf(IngredienteForm()),
     val pasos: List<String> = listOf(""),
-    val favorita: Boolean = false,
     /** Foto que ya tiene la receta en el servidor (null si no tiene o si el usuario la quitó). */
     val imagenUrlActual: String? = null,
     /** Foto nueva ya comprimida, pendiente de subir al guardar (ruta de archivo local). */

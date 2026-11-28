@@ -2,6 +2,7 @@ package com.perezgomez.recetario.features.recetas.presentation.viewmodels
 
 import com.perezgomez.recetario.features.auth.domain.entities.Usuario
 import com.perezgomez.recetario.features.recetas.domain.entities.Receta
+import com.perezgomez.recetario.features.recetas.domain.usecases.AlternarFavoritoUseCase
 import com.perezgomez.recetario.features.recetas.domain.usecases.EliminarRecetaPropiaUseCase
 import com.perezgomez.recetario.features.recetas.domain.usecases.GetMisRecetasUseCase
 import com.perezgomez.recetario.features.recetas.presentation.screens.ListaUi
@@ -64,6 +65,7 @@ class HomeViewModelTest {
         authRepository = auth,
         getMisRecetasUseCase = GetMisRecetasUseCase(recetaRepository, auth),
         eliminarRecetaPropiaUseCase = EliminarRecetaPropiaUseCase(recetaRepository, auth),
+        alternarFavoritoUseCase = AlternarFavoritoUseCase(recetaRepository, auth),
     )
 
     @Test
@@ -173,6 +175,66 @@ class HomeViewModelTest {
         assertTrue(state.sesionCerrada)
         assertFalse(state.estaAutenticado)
         assertEquals(ModoHome.EXPLORAR, state.modo)
+        assertFalse(authRepository.haySesion())
+    }
+
+    @Test
+    fun onToggleLike_visitante_previeneDoblesTapsYRestauraEnError() = runTest {
+        val authVisitante = FakeAuthRepository(null)
+        val vm = crearViewModel(authVisitante)
+        recetaRepository.recetas.add(recetaGlobal)
+        vm.configurarModo(ModoHome.EXPLORAR)
+        vm.cargar()
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+
+        recetaRepository.retardoSocialMs = 50L
+        vm.onToggleLike(recetaGlobal.id)
+        vm.onToggleLike(recetaGlobal.id) // pulsación duplicada mientras está en proceso
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, recetaRepository.llamadasDarLike)
+        val lista = vm.uiState.value.lista as ListaUi.Contenido
+        assertEquals(1, lista.recetas[0].likesCount)
+        assertTrue(lista.recetas[0].leDiLike)
+
+        // Falla de red al quitar like: restaura estado confirmado
+        recetaRepository.retardoSocialMs = 0L
+        recetaRepository.deberiaFallar = true
+        vm.onToggleLike(recetaGlobal.id)
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+
+        val trasError = vm.uiState.value.lista as ListaUi.Contenido
+        assertEquals(1, trasError.recetas[0].likesCount)
+        assertTrue(trasError.recetas[0].leDiLike)
+        assertEquals("Error simulado en repositorio", vm.uiState.value.mensaje)
+    }
+
+    @Test
+    fun onToggleFavorito_visitanteBloqueado_registradoSincronizaY401LimpiaSesion() = runTest {
+        recetaRepository.recetas.add(recetaGlobal)
+        val vmVisitante = crearViewModel(FakeAuthRepository(null))
+        vmVisitante.configurarModo(ModoHome.EXPLORAR)
+        vmVisitante.cargar()
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+
+        vmVisitante.onToggleFavorito(recetaGlobal.id)
+        assertEquals("Inicia sesión para guardar recetas en favoritos.", vmVisitante.uiState.value.mensaje)
+        assertEquals(0, recetaRepository.llamadasGuardarFavorito)
+
+        viewModel.configurarModo(ModoHome.EXPLORAR)
+        viewModel.cargar()
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.onToggleFavorito(recetaGlobal.id)
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue((viewModel.uiState.value.lista as ListaUi.Contenido).recetas[0].esFavorito)
+
+        // Simular token expirado 401
+        recetaRepository.simularUnauthorized = true
+        viewModel.onToggleFavorito(recetaGlobal.id)
+        mainDispatcherRule.testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.sesionExpirada)
+        assertFalse(viewModel.uiState.value.estaAutenticado)
         assertFalse(authRepository.haySesion())
     }
 }

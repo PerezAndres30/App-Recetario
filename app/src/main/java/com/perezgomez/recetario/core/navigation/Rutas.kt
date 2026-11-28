@@ -6,6 +6,7 @@ object Rutas {
     const val REGISTRO = "registro"
     const val EXPLORAR = "explorar"
     const val HOME = "home"
+    const val FAVORITOS = "favoritos"
     const val DETALLE = "detalle/{id}"
     const val FORMULARIO = "formulario?id={id}"
 

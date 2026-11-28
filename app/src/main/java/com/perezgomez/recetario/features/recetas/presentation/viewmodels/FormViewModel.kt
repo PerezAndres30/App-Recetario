@@ -66,7 +66,6 @@ class FormViewModel @Inject constructor(
                                 .map { i -> IngredienteForm(i.nombre, i.cantidad, i.unidad) }
                                 .ifEmpty { listOf(IngredienteForm()) },
                             pasos = receta.pasos.ifEmpty { listOf("") },
-                            favorita = receta.favorita,
                             imagenUrlActual = receta.imagenUrl,
                         )
                     }
@@ -95,8 +94,6 @@ class FormViewModel @Inject constructor(
         _uiState.update {
             it.copy(porciones = valor.filter(Char::isDigit), errores = it.errores.copy(porciones = null))
         }
-
-    fun onFavoritaChange(valor: Boolean) = _uiState.update { it.copy(favorita = valor) }
 
     fun onIngredienteChange(indice: Int, ingrediente: IngredienteForm) =
         _uiState.update {
@@ -186,7 +183,6 @@ class FormViewModel @Inject constructor(
                 .filter { it.nombre.isNotBlank() }
                 .map { Ingrediente(it.nombre.trim(), it.cantidad.trim(), it.unidad.trim()) },
             pasos = actual.pasos.filter { it.isNotBlank() },
-            favorita = actual.favorita,
             creadaEn = creadaEn,
         )
 

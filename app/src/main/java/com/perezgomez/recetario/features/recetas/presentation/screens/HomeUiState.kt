@@ -19,9 +19,12 @@ data class HomeUiState(
     val lista: ListaUi = ListaUi.Cargando,
     val estaAutenticado: Boolean = false,
     val nombreUsuario: String = "",
+    val likesEnProceso: Set<String> = emptySet(),
+    val favoritosEnProceso: Set<String> = emptySet(),
     val recetaAEliminar: Receta? = null,
     val eliminando: Boolean = false,
     val mensaje: String? = null,
     val sesionCerrada: Boolean = false,
+    val sesionExpirada: Boolean = false,
     val actualizando: Boolean = false,
 )

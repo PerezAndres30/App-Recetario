@@ -11,10 +11,14 @@ sealed interface DetalleContenido {
 
 data class DetalleUiState(
     val contenido: DetalleContenido = DetalleContenido.Cargando,
+    val estaAutenticado: Boolean = false,
     val esPropietarioVerificado: Boolean = false,
+    val procesandoLike: Boolean = false,
+    val procesandoFavorito: Boolean = false,
     val confirmandoEliminar: Boolean = false,
     val eliminando: Boolean = false,
     val eliminada: Boolean = false,
+    val sesionExpirada: Boolean = false,
     val mensaje: String? = null,
     val ttsState: EstadoLectura = EstadoLectura(),
 )

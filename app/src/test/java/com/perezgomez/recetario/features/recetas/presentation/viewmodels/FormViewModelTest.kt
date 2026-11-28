@@ -101,7 +101,6 @@ class FormViewModelTest {
         assertEquals(1, state.ingredientes.size)
         assertEquals("Carne de cerdo", state.ingredientes[0].nombre)
         assertEquals(2, state.pasos.size)
-        assertTrue(state.favorita)
     }
 
     @Test
@@ -245,21 +244,6 @@ class FormViewModelTest {
 
         viewModel.onQuitarPaso(0)
         assertEquals(1, viewModel.uiState.value.pasos.size)
-    }
-
-    @Test
-    fun cambioDeFavorita_actualizaEstado() {
-        val viewModel = FormViewModel(
-            recetaRepository = recetaRepository,
-            authRepository = authRepository,
-            imagenRepository = imagenRepository,
-            procesadorImagen = procesadorImagen,
-            savedStateHandle = SavedStateHandle(),
-        )
-
-        assertFalse(viewModel.uiState.value.favorita)
-        viewModel.onFavoritaChange(true)
-        assertTrue(viewModel.uiState.value.favorita)
     }
 
     // ---- fotos ------------------------------------------------------------
